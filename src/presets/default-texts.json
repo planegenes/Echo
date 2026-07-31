@@ -1,0 +1,110 @@
+[
+  {
+    "id": "text_geo_china_basic",
+    "content": "**中国地理常识**\n中国的首都是*北京*，最大经济中心是*上海*。\n国土面积约*960*万平方公里，居世界第三。\n最大的内陆省份是*新疆*，人口最多的省是*广东*。"
+  },
+  {
+    "id": "text_geo_yangtze",
+    "content": "**长江**\n长江发源于*青藏高原*的唐古拉山。\n全长约*6300*公里，是亚洲第一长河。\n流经*11*个省区，最终注入*东海*。\n中游著名水利工程叫*三峡大坝*。"
+  },
+  {
+    "id": "text_geo_yellow_river",
+    "content": "**黄河**\n黄河被誉为中华民族的*母亲河*。\n发源于*青海*的巴颜喀拉山。\n呈*几*字形大拐弯，最终注入*渤海*。\n下游因泥沙沉积形成*地上河*。"
+  },
+  {
+    "id": "text_geo_mountain",
+    "content": "**珠穆朗玛峰**\n珠穆朗玛峰位于中国与*尼泊尔*的边境。\n最新公布海拔为*8848.86*米，是世界最高峰。\n藏语中珠穆朗玛意为*大地之母*。\n首次成功登顶是在*1953*年。"
+  },
+  {
+    "id": "text_geo_lakes",
+    "content": "**中国五大淡水湖**\n中国五大淡水湖之首是*鄱阳湖*。\n第二是*洞庭湖*，位于湖南省。\n第三是*太湖*，跨江浙两省。\n第四是*洪泽湖*，第五是*巢湖*。"
+  },
+  {
+    "id": "text_hist_ancient",
+    "content": "**中国朝代顺序**\n中国第一个统一王朝是*秦*朝，建立于*221*BC。\n汉朝分为西汉与*东汉*两段。\n唐朝由*李渊*建立，定都*长安*。\n宋朝分为北宋与*南宋*两段。"
+  },
+  {
+    "id": "text_hist_imperial",
+    "content": "**帝制时代**\n明朝开国皇帝是*朱元璋*，年号*洪武*。\n明成祖*朱棣*迁都到*北京*。\n清朝入关后第一位皇帝是*顺治*。\n康熙、雍正、*乾隆*三代被称为盛世。"
+  },
+  {
+    "id": "text_math_pythagorean",
+    "content": "**勾股定理**\n勾股定理描述的是*直角*三角形三边关系。\n若两直角边长为 *a* 和 *b*，斜边长为 *c*，\n则满足 *a² + b² = c²*。\n中国古代称该定理为*商高*定理。"
+  },
+  {
+    "id": "text_math_pi",
+    "content": "**圆周率**\n圆周率 π 约等于*3.14159*。\n中国古代数学家*祖冲之*将其精确到小数点后七位。\n圆的周长公式为 *C = 2πr*。\n圆的面积公式为 *S = πr²*。"
+  },
+  {
+    "id": "text_math_euler",
+    "content": "**欧拉公式**\n欧拉恒等式被誉为最美的数学公式。\n它将五个重要常数联系起来：\n*e*、*i*、*π*、*1* 和 *0*。\n公式形式为 *e^(iπ) + 1 = 0*。"
+  },
+  {
+    "id": "text_math_derivative",
+    "content": "**导数**\n函数 f(x) 在点 x 处的导数定义为极限：\n*f'(x) = lim (h→0) [f(x+h) - f(x)] / h*。\n导数表示函数在该点的*瞬时变化率*。\n常数函数的导数为*0*。\n*xⁿ* 的导数为 *n·xⁿ⁻¹*。"
+  },
+  {
+    "id": "text_math_probability",
+    "content": "**概率基础**\n必然事件的概率为*1*。\n不可能事件的概率为*0*。\n任何事件的概率 P 满足 *0 ≤ P ≤ 1*。\n互斥事件之和的概率等于各事件概率之*和*。"
+  },
+  {
+    "id": "text_phys_newton1",
+    "content": "**牛顿第一定律**\n牛顿第一定律又称*惯性*定律。\n内容为：一切物体在不受外力时，保持*静止*或*匀速直线运动*。\n该定律由*伽利略*的实验基础上总结得出。\n力是*改变*物体运动状态的原因。"
+  },
+  {
+    "id": "text_phys_newton2",
+    "content": "**牛顿第二定律**\n牛顿第二定律公式为 *F = ma*。\n其中 F 表示*合外力*，单位为牛顿。\nm 表示物体的*质量*，单位为千克。\na 表示*加速度*，单位为 m/s²。"
+  },
+  {
+    "id": "text_phys_energy",
+    "content": "**能量守恒定律**\n能量既不会凭空产生，也不会凭空*消失*。\n它只能从一种形式*转化*为另一种形式。\n动能公式为 *E_k = ½mv²*。\n重力势能公式为 *E_p = mgh*。"
+  },
+  {
+    "id": "text_phys_light",
+    "content": "**光速**\n真空中光速约为*3×10⁸* m/s。\n光速是宇宙中*最快*的速度。\n爱因斯坦提出光速*不变*原理。\n著名公式 *E = mc²* 揭示了质能等价。"
+  },
+  {
+    "id": "text_phys_ohm",
+    "content": "**欧姆定律**\n欧姆定律公式为 *I = U / R*。\n其中 I 表示*电流*，单位为安培。\nU 表示*电压*，单位为伏特。\nR 表示*电阻*，单位为欧姆。"
+  },
+  {
+    "id": "text_chem_water",
+    "content": "**水分子**\n水的化学式为*H₂O*。\n由两个*氢*原子和一个*氧*原子组成。\n常温常压下为*液*态。\n沸点为*100*摄氏度，冰点为*0*摄氏度。"
+  },
+  {
+    "id": "text_chem_ph",
+    "content": "**酸碱 pH**\npH 值的范围是*0*到*14*。\n中性溶液 pH = *7*。\n酸性溶液 pH *<7*，碱性溶液 pH *>7*。\n纯水的 pH 约为*7*。"
+  },
+  {
+    "id": "text_chem_periodic",
+    "content": "**元素周期表**\n元素周期表由*门捷列夫*提出。\n氢的元素符号是*H*，原子序数为*1*。\n碳的符号是*C*，是生命的基础元素。\n金的符号是*Au*，铁的符号是*Fe*。"
+  },
+  {
+    "id": "text_chem_burn",
+    "content": "**燃烧反应**\n燃烧需要三个条件，称为燃烧三要素。\n即可燃物、*助燃物*和*着火点*。\n常见的助燃物是*氧气*。\n二氧化碳可用作*灭火*剂。"
+  },
+  {
+    "id": "text_bio_cell",
+    "content": "**细胞**\n细胞是生物体结构和功能的*基本*单位。\n细胞膜的基本骨架是*磷脂双分子层*。\n植物细胞特有的结构包括*细胞壁*与*叶绿体*。\n细胞内的能量工厂是*线粒体*。"
+  },
+  {
+    "id": "text_bio_photosynthesis",
+    "content": "**光合作用**\n光合作用发生在植物的*叶绿体*中。\n反应物为*二氧化碳*和*水*。\n产物为*葡萄糖*和*氧气*。\n总反应式为 *6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂*。"
+  },
+  {
+    "id": "text_bio_dna",
+    "content": "**DNA**\nDNA 中文全称是*脱氧核糖核酸*。\n它的结构是*双螺旋*，由*沃森*与*克里克*发现。\nDNA 的基本单位是*脱氧核苷酸*。\nA-T、G-*C* 是碱基互补配对原则。"
+  },
+  {
+    "id": "text_en_greeting",
+    "content": "**Greetings**\nWhen you meet someone in the morning, you can say *Good morning*.\nIn the afternoon, use *Good afternoon*.\nIn the evening, say *Good evening*.\nA casual greeting is *Hi* or *Hello*."
+  },
+  {
+    "id": "text_en_thanks",
+    "content": "**Expressing Thanks**\nThe most common way is *Thank you*.\nFor stronger gratitude, say *Thank you very much*.\nCasual thanks can be *Thanks*.\nA formal response is *You're welcome*."
+  },
+  {
+    "id": "text_en_farewell",
+    "content": "**Saying Goodbye**\nThe standard farewell is *Goodbye*.\nFor short-term parting, use *See you*.\nWishing someone well: *Take care*.\nIn formal contexts, say *Farewell*."
+  }
+]
