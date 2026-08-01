@@ -21,7 +21,7 @@ export default function FillInputPage() {
   const effectiveId = urlTextId ?? selectedId
 
   return (
-    <AppShell title="填空（输入）" extra={<TopicSelector />}>
+    <AppShell title="填空（输入）" extra={<TopicSelector type="texts" />}>
       <div className="space-y-4">
         {!urlTextId && (
           <div className="space-y-1.5">

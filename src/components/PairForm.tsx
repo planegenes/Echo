@@ -90,6 +90,7 @@ interface SideEditorProps {
 
 function SideEditor({ label, content, onChange }: SideEditorProps) {
   const isLatex = content.format === 'latex'
+  const isRuby = content.format === 'ruby'
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-center justify-between">
@@ -106,6 +107,13 @@ function SideEditor({ label, content, onChange }: SideEditorProps) {
           value={content.value}
           onChange={(e) => onChange({ value: e.target.value })}
           placeholder="输入 LaTeX，例如 a^2 + b^2 = c^2"
+          rows={2}
+        />
+      ) : isRuby ? (
+        <Textarea
+          value={content.value}
+          onChange={(e) => onChange({ value: e.target.value })}
+          placeholder="输入注音，例如 東^と 或 {東京}^{とうきょう}（多字符需加 {}）"
           rows={2}
         />
       ) : (
@@ -133,9 +141,14 @@ function FormatToggle({
   value: ContentFormat
   onChange: (fmt: ContentFormat) => void
 }) {
+  const labels: Record<ContentFormat, string> = {
+    text: '文本',
+    latex: 'LaTeX',
+    ruby: '注音',
+  }
   return (
     <div className="inline-flex rounded-md border bg-background p-0.5">
-      {(['text', 'latex'] as const).map((fmt) => (
+      {(['text', 'latex', 'ruby'] as const).map((fmt) => (
         <button
           key={fmt}
           type="button"
@@ -147,7 +160,7 @@ function FormatToggle({
               : 'text-muted-foreground hover:text-foreground')
           }
         >
-          {fmt === 'text' ? '文本' : 'LaTeX'}
+          {labels[fmt]}
         </button>
       ))}
     </div>

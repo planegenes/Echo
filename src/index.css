@@ -133,6 +133,13 @@
   font-size: 1.1em;
 }
 
+/* Ruby 注音容器：rt 略小于 base */
+.ruby-inline rt {
+  font-size: 0.55em;
+  font-weight: 400;
+  line-height: 1;
+}
+
 /* 全角空格撑开空白槽宽度的辅助类 */
 .blank-pad {
   white-space: pre;

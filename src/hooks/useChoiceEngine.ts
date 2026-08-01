@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useAtomValue } from 'jotai'
-import type { Content, PairItem } from '@/types'
+import type { Content, ContentFormat, PairItem } from '@/types'
 import { activeDeckAtom, persistPair, type ChoiceSession } from '@/store/atoms'
 import { clamp, randInt, sampleN, shuffle, uid } from '@/lib/utils'
 import type { ChoiceDirection } from '@/types'
@@ -18,7 +18,7 @@ import type { ChoiceDirection } from '@/types'
 interface ChoiceOption {
   id: string
   value: string
-  format: 'text' | 'latex'
+  format: ContentFormat
 }
 
 interface ChoiceEngineState {

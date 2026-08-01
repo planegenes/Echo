@@ -1,9 +1,10 @@
 import { ContentRenderer } from '@/components/ContentRenderer'
+import type { ContentFormat } from '@/types'
 import { cn } from '@/lib/utils'
 
 export interface ChoiceOptionProps {
   value: string
-  format: 'text' | 'latex'
+  format: ContentFormat
   selected: boolean
   resolved: 'idle' | 'correct' | 'wrong'
   isCorrectAnswer: boolean

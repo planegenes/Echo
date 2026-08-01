@@ -1,10 +1,12 @@
 import { useCallback } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
-import type { Topic } from '@/types'
+import type { Topic, TopicType } from '@/types'
 import {
   topicsAtom,
-  activeTopicAtom,
-  activeTopicIdAtom,
+  activePairsTopicAtom,
+  activeTextsTopicAtom,
+  activePairsTopicIdAtom,
+  activeTextsTopicIdAtom,
   persistTopic,
   deleteTopic,
 } from '@/store/atoms'
@@ -13,22 +15,32 @@ import { uid } from '@/lib/utils'
 /**
  * 专题管理 hook
  * - 专题的增删改名
- * - 切换活动专题
+ * - 切换活动专题（按类型）
  */
 export function useTopics() {
   const topics = useAtomValue(topicsAtom)
-  const activeTopic = useAtomValue(activeTopicAtom)
-  const activeTopicId = useAtomValue(activeTopicIdAtom)
-  const setActiveTopicId = useSetAtom(activeTopicIdAtom)
+  const activePairsTopic = useAtomValue(activePairsTopicAtom)
+  const activeTextsTopic = useAtomValue(activeTextsTopicAtom)
+  const activePairsTopicId = useAtomValue(activePairsTopicIdAtom)
+  const activeTextsTopicId = useAtomValue(activeTextsTopicIdAtom)
+  const setActivePairsTopicId = useSetAtom(activePairsTopicIdAtom)
+  const setActiveTextsTopicId = useSetAtom(activeTextsTopicIdAtom)
 
   const addTopic = useCallback(
-    async (name: string): Promise<Topic> => {
-      const topic: Topic = { id: uid('topic'), name, pairs: [], texts: [] }
+    async (name: string, type: TopicType): Promise<Topic> => {
+      const topic: Topic = {
+        id: uid('topic'),
+        name,
+        type,
+        pairs: type === 'pairs' ? [] : [],
+        texts: type === 'texts' ? [] : [],
+      }
       await persistTopic(topic)
-      setActiveTopicId(topic.id)
+      if (type === 'pairs') setActivePairsTopicId(topic.id)
+      else setActiveTextsTopicId(topic.id)
       return topic
     },
-    [setActiveTopicId],
+    [setActivePairsTopicId, setActiveTextsTopicId],
   )
 
   const renameTopic = useCallback(
@@ -49,9 +61,12 @@ export function useTopics() {
 
   return {
     topics,
-    activeTopic,
-    activeTopicId,
-    setActiveTopicId,
+    activePairsTopic,
+    activeTextsTopic,
+    activePairsTopicId,
+    activeTextsTopicId,
+    setActivePairsTopicId,
+    setActiveTextsTopicId,
     addTopic,
     renameTopic,
     removeTopic,

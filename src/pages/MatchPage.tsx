@@ -7,10 +7,10 @@ import { useTopics } from '@/hooks/useTopics'
  * 配对测验页面
  */
 export default function MatchPage() {
-  const { activeTopicId } = useTopics()
+  const { activePairsTopicId } = useTopics()
   return (
-    <AppShell title="配对测验" extra={<TopicSelector />}>
-      <MatchGame key={activeTopicId ?? 'none'} />
+    <AppShell title="配对测验" extra={<TopicSelector type="pairs" />}>
+      <MatchGame key={activePairsTopicId ?? 'none'} />
     </AppShell>
   )
 }

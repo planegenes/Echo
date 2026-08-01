@@ -3,6 +3,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import type { Content } from '@/types'
 import { cn } from '@/lib/utils'
+import { escapeHtml, renderRubyToHtml } from '@/lib/ruby'
 
 export interface ContentRendererProps {
   content: Content
@@ -12,10 +13,10 @@ export interface ContentRendererProps {
 }
 
 /**
- * 渲染 text / latex / bold 三种格式
+ * 渲染 text / latex / ruby 三种格式
  * - text: 直接显示字符串
  * - latex: 通过 KaTeX 渲染（throwOnError: false）
- * - bold: 由调用方包裹 strong 标签，本组件只在 latex/text 层处理
+ * - ruby: 解析 `{base}^{ruby}` 语法，输出 `<ruby>base<rt>ruby</rt></ruby>`
  */
 export function ContentRenderer({
   content,
@@ -36,23 +37,22 @@ export function ContentRenderer({
           : `<span class="text-destructive">LaTeX 渲染失败</span>`
       }
     }
+    if (content.format === 'ruby') {
+      return renderRubyToHtml(content.value)
+    }
     return escapeHtml(content.value)
   }, [content, fallbackOnFailure])
 
   return (
     <span
-      className={cn(content.format === 'latex' ? 'katex-inline' : '', className)}
+      className={cn(
+        content.format === 'latex' ? 'katex-inline' : '',
+        content.format === 'ruby' ? 'ruby-inline' : '',
+        className,
+      )}
       // KaTeX 输出受信任的 HTML（renderToString 已转义源字符串）
+      // Ruby 输出受信任的 HTML（escapeHtml 已转义源字符串）
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }

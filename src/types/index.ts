@@ -5,7 +5,7 @@
 
 // ===== 配对测验 =====
 
-export type ContentFormat = 'text' | 'latex'
+export type ContentFormat = 'text' | 'latex' | 'ruby'
 
 export interface Content {
   format: ContentFormat
@@ -53,9 +53,12 @@ export interface ParsedText {
 
 // ===== 专题 =====
 
+export type TopicType = 'pairs' | 'texts'
+
 export interface Topic {
   id: string
   name: string
+  type: TopicType
   pairs: PairItem[]
   texts: TextItem[]
 }

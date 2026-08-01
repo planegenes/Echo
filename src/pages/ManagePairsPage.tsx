@@ -17,19 +17,19 @@ import { useDeck } from '@/hooks/useDeck'
 import { useTexts } from '@/hooks/useTexts'
 import { useTopics } from '@/hooks/useTopics'
 import { replaceAllTopics } from '@/store/atoms'
-import type { PairItem, TextItem, Topic } from '@/types'
+import type { PairItem, TextItem, Topic, TopicType } from '@/types'
 import { cn, uid } from '@/lib/utils'
 import defaultPairs from '@/presets/default-pairs.json'
 import defaultTexts from '@/presets/default-texts.json'
 import { Plus, FolderPlus, Pencil, Trash2, Check, X } from 'lucide-react'
 
-type TabKey = 'pairs' | 'texts'
+type TabKey = TopicType
 
 /**
  * 题库管理页面
- * - 专题管理：新增/重命名/删除/切换
- * - 当前专题下的配对与文本 CRUD
- * - 导入导出（覆盖所有专题）
+ * - 配对专题 / 填空专题 两个 Tab
+ * - 每个 Tab 内可切换同类型专题，增删改名
+ * - 导入导出覆盖所有专题
  */
 export default function ManagePairsPage() {
   const topicsApi = useTopics()
@@ -48,16 +48,33 @@ export default function ManagePairsPage() {
   // 新增专题 Dialog
   const [topicDialogOpen, setTopicDialogOpen] = useState(false)
   const [newTopicName, setNewTopicName] = useState('')
+  const [newTopicType, setNewTopicType] = useState<TopicType>('pairs')
 
   // 重命名 inline
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
+  const { topics } = topicsApi
+  const tabTopics = topics.filter((t) => t.type === tab)
+  const activeTopicId =
+    tab === 'pairs' ? topicsApi.activePairsTopicId : topicsApi.activeTextsTopicId
+  const setActiveTopicId =
+    tab === 'pairs'
+      ? topicsApi.setActivePairsTopicId
+      : topicsApi.setActiveTextsTopicId
+  const activeTopic = tabTopics.find((t) => t.id === activeTopicId) ?? tabTopics[0] ?? null
+
   // ----- Topic 操作 -----
+  const openAddTopic = (type: TopicType) => {
+    setNewTopicType(type)
+    setNewTopicName('')
+    setTopicDialogOpen(true)
+  }
+
   const handleAddTopic = async () => {
     const name = newTopicName.trim()
     if (!name) return
-    await topicsApi.addTopic(name)
+    await topicsApi.addTopic(name, newTopicType)
     setNewTopicName('')
     setTopicDialogOpen(false)
   }
@@ -76,8 +93,9 @@ export default function ManagePairsPage() {
   }
 
   const handleDeleteTopic = async (topic: Topic) => {
-    if (topicsApi.topics.length <= 1) return
-    if (!confirm(`确定删除专题「${topic.name}」？其中所有配对和文本将一并删除。`)) return
+    const sameType = topics.filter((t) => t.type === topic.type)
+    if (sameType.length <= 1) return
+    if (!confirm(`确定删除专题「${topic.name}」？其中所有题目将一并删除。`)) return
     await topicsApi.removeTopic(topic.id)
   }
 
@@ -119,38 +137,68 @@ export default function ManagePairsPage() {
   }
 
   const handleRestoreDefaults = async () => {
-    const defaultTopic: Topic = {
+    const pairsTopic: Topic = {
       id: uid('topic'),
-      name: '测试题库',
+      name: '测试题库（配对）',
+      type: 'pairs',
       pairs: defaultPairs as PairItem[],
+      texts: [],
+    }
+    const textsTopic: Topic = {
+      id: uid('topic'),
+      name: '测试题库（填空）',
+      type: 'texts',
+      pairs: [],
       texts: defaultTexts as TextItem[],
     }
-    await replaceAllTopics([defaultTopic])
+    await replaceAllTopics([pairsTopic, textsTopic])
   }
 
-  const { topics, activeTopic, activeTopicId, setActiveTopicId } = topicsApi
-
-  const tabs: { key: TabKey; label: string }[] = [
-    { key: 'pairs', label: `配对 (${deckApi.deck.length})` },
-    { key: 'texts', label: `文本 (${textsApi.texts.length})` },
-  ]
+  const tabKeys: TabKey[] = ['pairs', 'texts']
 
   return (
     <AppShell title="题库管理">
       <div className="space-y-6">
+        {/* 类型 Tab 切换 */}
+        <div className="inline-flex rounded-md border p-1 bg-muted/30">
+          {tabKeys.map((t) => {
+            const count = topics.filter((tp) => tp.type === t).length
+            return (
+              <Button
+                key={t}
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'rounded-sm px-4',
+                  tab === t
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => setTab(t)}
+              >
+                {t === 'pairs' ? `配对专题 (${count})` : `填空专题 (${count})`}
+              </Button>
+            )
+          })}
+        </div>
+
         {/* 专题管理区 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">专题</span>
-            <Button variant="outline" size="sm" onClick={() => setTopicDialogOpen(true)}>
+            <span className="text-sm font-medium">
+              {tab === 'pairs' ? '配对专题' : '填空专题'}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => openAddTopic(tab)}>
               <FolderPlus className="h-4 w-4" />
               新增专题
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {topics.map((topic) => {
+            {tabTopics.map((topic) => {
               const isActive = topic.id === activeTopicId
               const isRenaming = renamingId === topic.id
+              const itemCount =
+                topic.type === 'pairs' ? topic.pairs.length : topic.texts.length
               return (
                 <div
                   key={topic.id}
@@ -197,9 +245,7 @@ export default function ManagePairsPage() {
                       >
                         {topic.name}
                       </button>
-                      <span className="text-xs opacity-60">
-                        ({topic.pairs.length}+{topic.texts.length})
-                      </span>
+                      <span className="text-xs opacity-60">({itemCount})</span>
                       <button
                         type="button"
                         onClick={() => startRename(topic)}
@@ -208,7 +254,7 @@ export default function ManagePairsPage() {
                       >
                         <Pencil className="h-3 w-3" />
                       </button>
-                      {topics.length > 1 && (
+                      {tabTopics.length > 1 && (
                         <button
                           type="button"
                           onClick={() => void handleDeleteTopic(topic)}
@@ -226,30 +272,8 @@ export default function ManagePairsPage() {
           </div>
         </div>
 
-        {/* 配对/文本 Tab 切换 */}
-        {activeTopic && (
-          <div className="inline-flex rounded-md border p-1 bg-muted/30">
-            {tabs.map((t) => (
-              <Button
-                key={t.key}
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  'rounded-sm px-4',
-                  tab === t.key
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-                onClick={() => setTab(t.key)}
-              >
-                {t.label}
-              </Button>
-            ))}
-          </div>
-        )}
-
         {/* 当前 tab 内容 */}
-        {activeTopic && tab === 'pairs' && (
+        {tab === 'pairs' && activeTopic && (
           <PairList
             pairs={deckApi.deck}
             onAdd={openAddPair}
@@ -258,7 +282,7 @@ export default function ManagePairsPage() {
             onResetStats={(id) => void deckApi.resetStats(id)}
           />
         )}
-        {activeTopic && tab === 'texts' && (
+        {tab === 'texts' && activeTopic && (
           <TextList
             texts={textsApi.texts}
             onAdd={openAddText}
@@ -284,7 +308,9 @@ export default function ManagePairsPage() {
         }}
       >
         <DialogHeader>
-          <DialogTitle>新增专题</DialogTitle>
+          <DialogTitle>
+            新增{newTopicType === 'pairs' ? '配对' : '填空'}专题
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-3 p-4">
           <Input

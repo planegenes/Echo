@@ -92,6 +92,9 @@ export function PairList({
                 {pair.left.format === 'latex' || pair.right.format === 'latex' ? (
                   <Badge variant="outline">LaTeX</Badge>
                 ) : null}
+                {pair.left.format === 'ruby' || pair.right.format === 'ruby' ? (
+                  <Badge variant="outline">注音</Badge>
+                ) : null}
                 {totalErr > 0 && (
                   <Badge variant="warning" title="累计错误权重">
                     {totalErr}

@@ -9,12 +9,12 @@ import { clamp, sampleN, shuffle } from '@/lib/utils'
  * - 普通难度：每回合 4 组 pair，左右分别打乱
  * - 困难难度：1 组正确 + 4 组仅左侧 + 4 组仅右侧 = 9 组，5+5 选项中只有一对正确答案
  * - 选中 left + right 后判定
- * - 正确：那一对变绿，其他选项淡出；1.2s 后自动开新一回合（避开上一轮的 pair）
+ * - 正确：那一对变绿，其他选项淡出；0.6s 后自动开新一回合（避开上一轮的 pair）
  * - 错误：选中两项变红，0.8s 后清除可继续选
  * - 抽取权重：1 + lr + rl，避开上一轮的 pair
  */
 const ROUND_SIZE = 4
-const MATCH_HOLD_MS = 1200
+const MATCH_HOLD_MS = 600
 const WRONG_HOLD_MS = 800
 
 /** 困难模式：1 正确 + 4 左干扰 + 4 右干扰 = 9 组，每侧 5 选项 */

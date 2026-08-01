@@ -8,7 +8,7 @@ import { uid } from './utils'
  */
 
 const contentSchema = z.object({
-  format: z.enum(['text', 'latex']),
+  format: z.enum(['text', 'latex', 'ruby']),
   value: z.string().min(1),
 })
 
@@ -34,6 +34,7 @@ const textSchema = z.object({
 const topicSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
+  type: z.enum(['pairs', 'texts']),
   pairs: z.array(pairSchema).default([]),
   texts: z.array(textSchema).default([]),
 })
@@ -65,6 +66,7 @@ export function parseSnapshot(input: unknown): ParseResult {
     topics = r.topics.map((t) => ({
       id: t.id,
       name: t.name,
+      type: t.type,
       pairs: t.pairs.map((p) => ({
         ...p,
         stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
@@ -72,13 +74,16 @@ export function parseSnapshot(input: unknown): ParseResult {
       texts: t.texts.slice(),
     }))
   } else {
-    // 旧格式：将 pairs + texts 包装为单个专题
+    // 旧格式：将 pairs + texts 拆分为两个专题（按类型）
     const pairs = (r.pairs ?? []).map((p) => ({
       ...p,
       stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
     }))
     const texts = (r.texts ?? []).slice()
-    topics = [{ id: uid('topic'), name: '测试题库', pairs, texts }]
+    topics = [
+      { id: uid('topic'), name: '测试题库（配对）', type: 'pairs', pairs, texts: [] },
+      { id: uid('topic'), name: '测试题库（文本）', type: 'texts', pairs: [], texts },
+    ]
   }
 
   return { ok: true, data: { topics } }
@@ -90,6 +95,7 @@ export function buildSnapshot(topics: Topic[]): Snapshot {
     topics: topics.map((t) => ({
       id: t.id,
       name: t.name,
+      type: t.type,
       pairs: t.pairs.map((p) => ({
         ...p,
         stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
@@ -131,6 +137,7 @@ export function ensureIds(snapshot: Snapshot): Snapshot {
     topics: snapshot.topics.map((t) => ({
       id: t.id || uid('topic'),
       name: t.name,
+      type: t.type,
       pairs: t.pairs.map((p) =>
         p.id ? p : { ...p, id: uid('pair') },
       ) as PairItem[],

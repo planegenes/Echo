@@ -7,10 +7,10 @@ import { useTopics } from '@/hooks/useTopics'
  * 单选匹配页面
  */
 export default function ChoicePage() {
-  const { activeTopicId } = useTopics()
+  const { activePairsTopicId } = useTopics()
   return (
-    <AppShell title="单选匹配" extra={<TopicSelector />}>
-      <ChoiceGame key={activeTopicId ?? 'none'} />
+    <AppShell title="单选匹配" extra={<TopicSelector type="pairs" />}>
+      <ChoiceGame key={activePairsTopicId ?? 'none'} />
     </AppShell>
   )
 }

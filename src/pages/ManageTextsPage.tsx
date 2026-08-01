@@ -21,7 +21,7 @@ type Mode = 'select' | 'input'
  */
 export default function ManageTextsPage() {
   const textsApi = useTexts()
-  const { activeTopicId } = useTopics()
+  const { activeTextsTopicId } = useTopics()
   const [mode, setMode] = useState<Mode>('select')
   const [seed, setSeed] = useState(0)
 
@@ -42,7 +42,7 @@ export default function ManageTextsPage() {
 
   if (textsApi.texts.length === 0) {
     return (
-      <AppShell title="填空测验" extra={<TopicSelector />}>
+      <AppShell title="填空测验" extra={<TopicSelector type="texts" />}>
         <div className="rounded-md border border-dashed p-10 text-center space-y-3">
           <p className="text-muted-foreground">当前专题没有文本，无法开始测验。</p>
           <Link to="/manage" className={buttonVariants({ variant: 'default' })}>
@@ -55,7 +55,7 @@ export default function ManageTextsPage() {
   }
 
   return (
-    <AppShell title="填空测验" extra={<TopicSelector />}>
+    <AppShell title="填空测验" extra={<TopicSelector type="texts" />}>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex rounded-md border p-1 bg-muted/30">
@@ -98,7 +98,7 @@ export default function ManageTextsPage() {
         </div>
 
         {currentTextId && (
-          <div key={`${activeTopicId ?? 'none'}-${mode}-${currentTextId}-${seed}`}>
+          <div key={`${activeTextsTopicId ?? 'none'}-${mode}-${currentTextId}-${seed}`}>
             {mode === 'select' ? (
               <FillSelectGame textId={currentTextId} />
             ) : (
