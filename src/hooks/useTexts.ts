@@ -1,22 +1,20 @@
 import { useCallback } from 'react'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import type { TextItem } from '@/types'
 import {
+  activeTextsAtom,
   persistText,
+  persistTexts,
   removeText as removeTextAtom,
   resetAllTexts,
-  textsAtom,
 } from '@/store/atoms'
-import { dbPutText } from '@/lib/db'
 import defaultTexts from '@/presets/default-texts.json'
 
 /**
- * 文本库操作
- * - 与 IndexedDB 同步
+ * 文本库操作（操作活动专题）
  */
 export function useTexts() {
-  const texts = useAtomValue(textsAtom)
-  const setTexts = useSetAtom(textsAtom)
+  const texts = useAtomValue(activeTextsAtom)
 
   const add = useCallback(async (text: TextItem) => {
     await persistText(text)
@@ -35,34 +33,26 @@ export function useTexts() {
   }, [])
 
   /** 批量替换（用于导入） */
-  const replaceAll = useCallback(
-    async (next: TextItem[]) => {
-      await resetAllTexts()
-      for (const t of next) await dbPutText(t)
-      setTexts(next)
-    },
-    [setTexts],
-  )
+  const replaceAll = useCallback(async (next: TextItem[]) => {
+    await persistTexts(next)
+  }, [])
 
-  /** 合并导入 */
+  /** 合并导入（保留已有） */
   const mergeImport = useCallback(
     async (items: TextItem[]) => {
       const map = new Map(texts.map((t) => [t.id, t] as const))
       for (const t of items) map.set(t.id, t)
       const next = Array.from(map.values())
-      for (const t of items) await dbPutText(t)
-      setTexts(next)
+      await persistTexts(next)
     },
-    [texts, setTexts],
+    [texts],
   )
 
-  /** 恢复默认数据 */
+  /** 恢复默认数据（替换活动专题的 text） */
   const restoreDefaults = useCallback(async () => {
-    await resetAllTexts()
     const defaults = defaultTexts as TextItem[]
-    for (const t of defaults) await dbPutText(t)
-    setTexts(defaults)
-  }, [setTexts])
+    await persistTexts(defaults)
+  }, [])
 
   return {
     texts,

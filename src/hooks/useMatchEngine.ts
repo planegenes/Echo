@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import type { PairItem } from '@/types'
-import { deckAtom, persistPair, type MatchSession } from '@/store/atoms'
+import { activeDeckAtom, persistPair, type MatchSession } from '@/store/atoms'
 import { clamp, sampleN, shuffle } from '@/lib/utils'
 
 /**
  * 模式一：左右配对（spec 5.1，重做版）
- * - 每回合 4 组 pair，左右分别打乱
+ * - 普通难度：每回合 4 组 pair，左右分别打乱
+ * - 困难难度：1 组正确 + 4 组仅左侧 + 4 组仅右侧 = 9 组，5+5 选项中只有一对正确答案
  * - 选中 left + right 后判定
  * - 正确：那一对变绿，其他选项淡出；1.2s 后自动开新一回合（避开上一轮的 pair）
  * - 错误：选中两项变红，0.8s 后清除可继续选
@@ -15,6 +16,11 @@ import { clamp, sampleN, shuffle } from '@/lib/utils'
 const ROUND_SIZE = 4
 const MATCH_HOLD_MS = 1200
 const WRONG_HOLD_MS = 800
+
+/** 困难模式：1 正确 + 4 左干扰 + 4 右干扰 = 9 组，每侧 5 选项 */
+const HARD_TOTAL = 9
+
+export type Difficulty = 'normal' | 'hard'
 
 interface MatchEngineState {
   session: MatchSession | null
@@ -26,6 +32,14 @@ interface MatchEngineState {
   justWrongIds: { left: string; right: string } | null
   /** 每开新回合自增，用作 grid key 以触发载入动画 */
   roundKey: number
+  /** 当前难度 */
+  difficulty: Difficulty
+}
+
+interface HardPick {
+  correct: PairItem
+  leftDistractors: PairItem[]
+  rightDistractors: PairItem[]
 }
 
 function pickRound(
@@ -81,9 +95,60 @@ function buildSession(pairs: PairItem[], lastPairIds: string[]): MatchSession {
   }
 }
 
+/** 困难模式抽取：1 正确 + 4 左干扰 + 4 右干扰，共 9 组互不相同的 pair */
+function pickRoundHard(
+  deck: PairItem[],
+  lastPairIds: string[],
+): HardPick | null {
+  if (deck.length < HARD_TOTAL) return null
+  const weights = deck.map((p) => 1 + (p.stats?.lr ?? 0) + (p.stats?.rl ?? 0))
+  const lastKey = [...lastPairIds].sort().join('|')
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const picks = weightedSampleN(deck, weights, HARD_TOTAL)
+    const key = picks.map((p) => p.id).sort().join('|')
+    if (key !== lastKey) {
+      return {
+        correct: picks[0],
+        leftDistractors: picks.slice(1, 5),
+        rightDistractors: picks.slice(5, 9),
+      }
+    }
+  }
+  // 兜底：尽量避开上一轮
+  const remaining = deck.filter((p) => !lastPairIds.includes(p.id))
+  const pool = remaining.length >= HARD_TOTAL ? remaining : deck
+  const picks = sampleN(pool, HARD_TOTAL)
+  return {
+    correct: picks[0],
+    leftDistractors: picks.slice(1, 5),
+    rightDistractors: picks.slice(5, 9),
+  }
+}
+
+function buildHardSession(
+  pick: HardPick,
+  lastPairIds: string[],
+): MatchSession {
+  const allPairs = [pick.correct, ...pick.leftDistractors, ...pick.rightDistractors]
+  // 左侧：正确 pair 的 left + 4 个左干扰的 left
+  // 右侧：正确 pair 的 right + 4 个右干扰的 right
+  // 只有 correct.id 同时出现在 leftOrder 和 rightOrder 中 → 唯一正确答案
+  const leftIds = [pick.correct.id, ...pick.leftDistractors.map((p) => p.id)]
+  const rightIds = [pick.correct.id, ...pick.rightDistractors.map((p) => p.id)]
+  return {
+    pairs: allPairs,
+    leftOrder: shuffle(leftIds),
+    rightOrder: shuffle(rightIds),
+    selectedLeft: null,
+    selectedRight: null,
+    matchedIds: [],
+    lastPairIds,
+  }
+}
+
 export function useMatchEngine() {
-  const deck = useAtomValue(deckAtom)
-  const setDeck = useSetAtom(deckAtom)
+  const deck = useAtomValue(activeDeckAtom)
 
   const [state, setState] = useState<MatchEngineState>({
     session: null,
@@ -92,6 +157,7 @@ export function useMatchEngine() {
     justMatchedId: null,
     justWrongIds: null,
     roundKey: 0,
+    difficulty: 'normal',
   })
 
   /** 同步更新 pair 的 stats 并写回 atom + IndexedDB */
@@ -101,26 +167,42 @@ export function useMatchEngine() {
       if (!pair) return
       const cur = { lr: pair.stats?.lr ?? 0, rl: pair.stats?.rl ?? 0 }
       const next = patch(cur)
-      void persistPair({ ...pair, stats: next }).then(() => {
-        setDeck((arr) => arr.map((p) => (p.id === pair.id ? { ...p, stats: next } : p)))
-      })
+      void persistPair({ ...pair, stats: next })
     },
-    [deck, setDeck],
+    [deck],
   )
 
   const start = useCallback(() => {
-    if (deck.length < ROUND_SIZE) {
-      setState((s) => ({ ...s, session: null }))
-      return
-    }
-    const picks = pickRound(deck, [])
-    setState({
-      session: picks ? buildSession(picks, []) : null,
-      score: 0,
-      errors: 0,
-      justMatchedId: null,
-      justWrongIds: null,
-      roundKey: 1,
+    setState((prev) => {
+      const mode = prev.difficulty
+      if (mode === 'hard') {
+        if (deck.length < HARD_TOTAL) {
+          return { ...prev, session: null }
+        }
+        const pick = pickRoundHard(deck, [])
+        return {
+          ...prev,
+          session: pick ? buildHardSession(pick, []) : null,
+          score: 0,
+          errors: 0,
+          justMatchedId: null,
+          justWrongIds: null,
+          roundKey: 1,
+        }
+      }
+      if (deck.length < ROUND_SIZE) {
+        return { ...prev, session: null }
+      }
+      const picks = pickRound(deck, [])
+      return {
+        ...prev,
+        session: picks ? buildSession(picks, []) : null,
+        score: 0,
+        errors: 0,
+        justMatchedId: null,
+        justWrongIds: null,
+        roundKey: 1,
+      }
     })
   }, [deck])
 
@@ -128,6 +210,17 @@ export function useMatchEngine() {
     setState((prev) => {
       if (!prev.session) return prev
       const lastIds = prev.session.pairs.map((p) => p.id)
+      if (prev.difficulty === 'hard') {
+        const pick = pickRoundHard(deck, lastIds)
+        if (!pick) return { ...prev, session: null }
+        return {
+          ...prev,
+          session: buildHardSession(pick, lastIds),
+          justMatchedId: null,
+          justWrongIds: null,
+          roundKey: prev.roundKey + 1,
+        }
+      }
       const picks = pickRound(deck, lastIds)
       if (!picks) return { ...prev, session: null }
       return {
@@ -139,6 +232,24 @@ export function useMatchEngine() {
       }
     })
   }, [deck])
+
+  /** 切换难度并重置当前会话 */
+  const setDifficulty = useCallback((d: Difficulty) => {
+    setState((prev) =>
+      prev.difficulty === d
+        ? prev
+        : {
+            ...prev,
+            difficulty: d,
+            session: null,
+            score: 0,
+            errors: 0,
+            justMatchedId: null,
+            justWrongIds: null,
+            roundKey: 0,
+          },
+    )
+  }, [])
 
   /** 用户点击某张卡片 */
   const select = useCallback(
@@ -239,11 +350,16 @@ export function useMatchEngine() {
   const selectLeft = useCallback((id: string) => select('left', id), [select])
   const selectRight = useCallback((id: string) => select('right', id), [select])
 
-  const canPlay = deck.length >= ROUND_SIZE
+  const canPlayNormal = deck.length >= ROUND_SIZE
+  const canPlayHard = deck.length >= HARD_TOTAL
+  const canPlay = state.difficulty === 'hard' ? canPlayHard : canPlayNormal
 
   return {
     canPlay,
+    canPlayNormal,
+    canPlayHard,
     deck,
+    difficulty: state.difficulty,
     session: state.session,
     score: state.score,
     errors: state.errors,
@@ -252,6 +368,7 @@ export function useMatchEngine() {
     roundKey: state.roundKey,
     start,
     nextRound,
+    setDifficulty,
     selectLeft,
     selectRight,
   }

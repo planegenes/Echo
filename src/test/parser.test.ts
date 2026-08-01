@@ -44,7 +44,7 @@ describe('parseText', () => {
     // segment 中也存在对应 blank
     const blankSeg = r.segments.find((s) => s.type === 'blank')
     expect(blankSeg).toBeDefined()
-    expect(blankSeg!.type === 'blank' && blankSeg.answer).toBe('北京')
+    expect(blankSeg?.type === 'blank' && blankSeg.answer).toBe('北京')
   })
 
   it('length 按 Unicode 码点计算（emoji 计为 1）', () => {

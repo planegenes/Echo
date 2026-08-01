@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { FillInputGame } from '@/components/FillInputGame'
+import { TopicSelector } from '@/components/TopicSelector'
 import { Label } from '@/components/ui/label'
 import { useTexts } from '@/hooks/useTexts'
 import { countBlanks } from '@/lib/parser'
@@ -9,7 +10,7 @@ import { countBlanks } from '@/lib/parser'
 /**
  * 填空模式页面（输入 + AI 评判）
  * - URL /fill/input/:textId 直接进入对应文本
- * - 否则提供文本选择器
+ * - 否则提供文本选择器（来自活动专题）
  */
 export default function FillInputPage() {
   const params = useParams<{ textId: string }>()
@@ -20,7 +21,7 @@ export default function FillInputPage() {
   const effectiveId = urlTextId ?? selectedId
 
   return (
-    <AppShell title="填空（输入）">
+    <AppShell title="填空（输入）" extra={<TopicSelector />}>
       <div className="space-y-4">
         {!urlTextId && (
           <div className="space-y-1.5">

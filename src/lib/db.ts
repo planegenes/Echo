@@ -1,21 +1,29 @@
 import Dexie, { type Table } from 'dexie'
-import type { PairItem, TextItem } from '@/types'
+import type { PairItem, TextItem, Topic } from '@/types'
 
 /**
  * IndexedDB 封装，使用 dexie.js
- * 详见 spec 第 9 节
  *
- * 注：DB 名 'pair-quiz-react' 保留以兼容旧版本用户数据
+ * v2: 引入 topics 表，pair/text 嵌入 Topic 之中
+ * 旧 pairs/texts 表保留以兼容迁移
  */
 export class RecallDB extends Dexie {
+  topics!: Table<Topic, string>
+  settings!: Table<{ key: string; value: unknown }, string>
+  // 旧表（仅用于迁移读取）
   pairs!: Table<PairItem, string>
   texts!: Table<TextItem, string>
-  settings!: Table<{ key: string; value: unknown }, string>
 
   constructor() {
     super('pair-quiz-react')
     this.version(1).stores({
       pairs: 'id, left.format, right.format',
+      texts: 'id',
+      settings: 'key',
+    })
+    this.version(2).stores({
+      topics: 'id',
+      pairs: 'id',
       texts: 'id',
       settings: 'key',
     })
@@ -31,44 +39,34 @@ export function getDB(): RecallDB {
   return _db
 }
 
-// ===== Pairs =====
+// ===== Topics =====
+
+export async function dbGetAllTopics(): Promise<Topic[]> {
+  return getDB().topics.toArray()
+}
+
+export async function dbPutTopic(topic: Topic): Promise<void> {
+  await getDB().topics.put(topic)
+}
+
+export async function dbDeleteTopic(id: string): Promise<void> {
+  await getDB().topics.delete(id)
+}
+
+export async function dbClearTopics(): Promise<void> {
+  await getDB().topics.clear()
+}
+
+// ===== 旧 Pairs 表（仅迁移用）=====
 
 export async function dbGetAllPairs(): Promise<PairItem[]> {
   return getDB().pairs.toArray()
 }
 
-export async function dbPutPair(pair: PairItem): Promise<void> {
-  await getDB().pairs.put(pair)
-}
-
-export async function dbBulkPutPairs(pairs: PairItem[]): Promise<void> {
-  await getDB().pairs.bulkPut(pairs)
-}
-
-export async function dbDeletePair(id: string): Promise<void> {
-  await getDB().pairs.delete(id)
-}
-
-export async function dbClearPairs(): Promise<void> {
-  await getDB().pairs.clear()
-}
-
-// ===== Texts =====
+// ===== 旧 Texts 表（仅迁移用）=====
 
 export async function dbGetAllTexts(): Promise<TextItem[]> {
   return getDB().texts.toArray()
-}
-
-export async function dbPutText(text: TextItem): Promise<void> {
-  await getDB().texts.put(text)
-}
-
-export async function dbDeleteText(id: string): Promise<void> {
-  await getDB().texts.delete(id)
-}
-
-export async function dbClearTexts(): Promise<void> {
-  await getDB().texts.clear()
 }
 
 // ===== Settings =====

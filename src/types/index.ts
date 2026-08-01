@@ -51,6 +51,15 @@ export interface ParsedText {
   maxBlankLength: number
 }
 
+// ===== 专题 =====
+
+export interface Topic {
+  id: string
+  name: string
+  pairs: PairItem[]
+  texts: TextItem[]
+}
+
 // ===== 设置 =====
 
 export interface AppSettings {
@@ -100,6 +109,5 @@ export interface AiJudgeResponse {
 // ===== 导入/导出 =====
 
 export interface Snapshot {
-  pairs: PairItem[]
-  texts: TextItem[]
+  topics: Topic[]
 }

@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import type { Content, PairItem } from '@/types'
-import { deckAtom, persistPair, type ChoiceSession } from '@/store/atoms'
+import { activeDeckAtom, persistPair, type ChoiceSession } from '@/store/atoms'
 import { clamp, randInt, sampleN, shuffle, uid } from '@/lib/utils'
 import type { ChoiceDirection } from '@/types'
 
@@ -104,8 +104,7 @@ function weightedSampleN<T>(items: T[], weights: number[], n: number): T[] {
 }
 
 export function useChoiceEngine() {
-  const deck = useAtomValue(deckAtom)
-  const setDeck = useSetAtom(deckAtom)
+  const deck = useAtomValue(activeDeckAtom)
 
   const [state, setState] = useState<ChoiceEngineState>({
     session: null,
@@ -125,11 +124,9 @@ export function useChoiceEngine() {
       const cur = pair.stats?.[key] ?? 0
       const next = patch(cur)
       const stats = { ...pair.stats, [key]: next } as PairItem['stats']
-      void persistPair({ ...pair, stats }).then(() => {
-        setDeck((arr) => arr.map((p) => (p.id === pair.id ? { ...p, stats } : p)))
-      })
+      void persistPair({ ...pair, stats })
     },
-    [deck, setDeck],
+    [deck],
   )
 
   const next = useCallback(() => {

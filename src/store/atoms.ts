@@ -5,28 +5,36 @@ import type {
   PairItem,
   PairStats,
   TextItem,
+  Topic,
 } from '@/types'
 import {
-  dbBulkPutPairs,
-  dbClearPairs,
-  dbClearTexts,
+  dbClearTopics,
+  dbDeleteTopic,
   dbGetAllPairs,
   dbGetAllTexts,
+  dbGetAllTopics,
   dbGetSetting,
-  dbPutPair,
-  dbPutText,
+  dbPutTopic,
   dbSetSetting,
 } from '@/lib/db'
+import defaultPairs from '@/presets/default-pairs.json'
+import defaultTexts from '@/presets/default-texts.json'
+import { uid } from '@/lib/utils'
 
 /**
  * Jotai 全局状态
- * 详见 spec 第 4 节状态管理
+ * v2: 引入「专题」概念，所有题目存放在 Topic 之中
  */
 
 // ===== 持久化数据 =====
 
-export const deckAtom = atom<PairItem[]>([])
-export const textsAtom = atom<TextItem[]>([])
+export const topicsAtom = atom<Topic[]>([])
+
+/** 当前选中的专题 id（持久化到 localStorage） */
+export const activeTopicIdAtom = atomWithStorage<string | null>(
+  'echo:activeTopic',
+  null,
+)
 
 export const settingsAtom = atomWithStorage<AppSettings>('pair-quiz:settings', {
   soundEnabled: true,
@@ -37,13 +45,29 @@ export const settingsAtom = atomWithStorage<AppSettings>('pair-quiz:settings', {
 
 // ===== 派生状态 =====
 
-/** 根据错误次数计算权重的 pair 列表：weight = 1 + lr + rl */
-export const weightedDeckAtom = atom((get) => {
-  const deck = get(deckAtom)
-  return deck.map((p) => ({
-    pair: p,
-    weight: 1 + (p.stats?.lr ?? 0) + (p.stats?.rl ?? 0),
-  }))
+/** 当前活动专题（activeTopicId 未命中时回退到第一个） */
+export const activeTopicAtom = atom((get) => {
+  const topics = get(topicsAtom)
+  const id = get(activeTopicIdAtom)
+  return topics.find((t) => t.id === id) ?? topics[0] ?? null
+})
+
+/** 活动专题的配对题库 */
+export const activeDeckAtom = atom((get) => {
+  const topic = get(activeTopicAtom)
+  return topic?.pairs ?? []
+})
+
+/** 活动专题的文本库 */
+export const activeTextsAtom = atom((get) => {
+  const topic = get(activeTopicAtom)
+  return topic?.texts ?? []
+})
+
+/** 跨所有专题扁平化的文本列表（用于按 id 查找） */
+export const allTextsAtom = atom((get) => {
+  const topics = get(topicsAtom)
+  return topics.flatMap((t) => t.texts)
 })
 
 // ===== 会话状态：模式一（左右配对） =====
@@ -107,7 +131,7 @@ export const currentTextIdAtom = atom<string | null>(null)
 export const currentTextAtom = atomWithDefault<TextItem | null>((get) => {
   const id = get(currentTextIdAtom)
   if (!id) return null
-  const texts = get(textsAtom)
+  const texts = get(allTextsAtom)
   return texts.find((t) => t.id === id) ?? null
 })
 
@@ -115,16 +139,37 @@ export const currentTextAtom = atomWithDefault<TextItem | null>((get) => {
 
 /** 应用启动时从 IndexedDB 加载数据到 atom */
 export async function loadPersistedData(): Promise<void> {
-  const [pairs, texts] = await Promise.all([dbGetAllPairs(), dbGetAllTexts()])
-  storeSet(deckAtom, pairs)
-  storeSet(textsAtom, texts)
+  let topics = await dbGetAllTopics()
+  if (topics.length === 0) {
+    // 迁移：尝试从旧 pairs/texts 表读取
+    const [oldPairs, oldTexts] = await Promise.all([
+      dbGetAllPairs(),
+      dbGetAllTexts(),
+    ])
+    const defaultTopic: Topic = {
+      id: uid('topic'),
+      name: '测试题库',
+      pairs: oldPairs.length > 0
+        ? oldPairs
+        : (defaultPairs as PairItem[]),
+      texts: oldTexts.length > 0
+        ? oldTexts
+        : (defaultTexts as TextItem[]),
+    }
+    await dbPutTopic(defaultTopic)
+    topics = [defaultTopic]
+  }
+  storeSet(topicsAtom, topics)
+
+  // 确保 activeTopicId 指向有效专题
+  const stored = internalStore.get(activeTopicIdAtom)
+  if (!stored || !topics.find((t) => t.id === stored)) {
+    internalStore.set(activeTopicIdAtom, topics[0]?.id ?? null)
+  }
 }
 
 // ===== 与 IndexedDB 同步的小工具 =====
 
-// Jotai 没有提供外部 setter，这里通过模块级 store 来 set
-// 导出该 store 供 main.tsx 通过 <Provider store={appStore}> 使用，
-// 保证外部 setter 写入与 React 读取使用同一个 store
 export const appStore = createStore()
 const internalStore = appStore
 
@@ -132,70 +177,181 @@ function storeSet<T>(anAtom: import('jotai').PrimitiveAtom<T>, value: T): void {
   internalStore.set(anAtom, value)
 }
 
-/** 把 deck 同步回 IndexedDB 与 atom */
-export async function persistDeck(pairs: PairItem[]): Promise<void> {
-  await dbBulkPutPairs(pairs)
-  storeSet(deckAtom, pairs)
+// ----- Topic 级别 -----
+
+/** 新增或更新整个专题 */
+export async function persistTopic(topic: Topic): Promise<void> {
+  await dbPutTopic(topic)
+  const cur = internalStore.get(topicsAtom)
+  const idx = cur.findIndex((t) => t.id === topic.id)
+  const next = cur.slice()
+  if (idx === -1) next.push(topic)
+  else next[idx] = topic
+  storeSet(topicsAtom, next)
 }
 
+/** 删除专题（至少保留一个） */
+export async function deleteTopic(id: string): Promise<void> {
+  const cur = internalStore.get(topicsAtom)
+  if (cur.length <= 1) return
+  await dbDeleteTopic(id)
+  const next = cur.filter((t) => t.id !== id)
+  storeSet(topicsAtom, next)
+  // 若删的是活动专题，切换到第一个
+  if (internalStore.get(activeTopicIdAtom) === id) {
+    internalStore.set(activeTopicIdAtom, next[0]?.id ?? null)
+  }
+}
+
+/** 清空所有专题 */
+export async function resetAllTopics(): Promise<void> {
+  await dbClearTopics()
+  storeSet(topicsAtom, [])
+}
+
+/** 批量替换所有专题（用于导入） */
+export async function replaceAllTopics(newTopics: Topic[]): Promise<void> {
+  await dbClearTopics()
+  for (const t of newTopics) await dbPutTopic(t)
+  storeSet(topicsAtom, newTopics)
+  internalStore.set(activeTopicIdAtom, newTopics[0]?.id ?? null)
+}
+
+// ----- Pair 级别（操作活动专题）-----
+
+function getActiveTopicId(): string | null {
+  const topics = internalStore.get(topicsAtom)
+  if (topics.length === 0) return null
+  const id = internalStore.get(activeTopicIdAtom)
+  return topics.find((t) => t.id === id) ? id : topics[0].id
+}
+
+/** 在活动专题中新增或更新 pair */
 export async function persistPair(pair: PairItem): Promise<void> {
-  await dbPutPair(pair)
-  // 同步到 atom（基于当前 deck）
-  const cur = internalStore.get(deckAtom)
-  const idx = cur.findIndex((p) => p.id === pair.id)
-  const next = cur.slice()
-  if (idx === -1) next.push(pair)
-  else next[idx] = pair
-  storeSet(deckAtom, next)
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const idx = topic.pairs.findIndex((p) => p.id === pair.id)
+  const nextPairs =
+    idx === -1
+      ? [...topic.pairs, pair]
+      : topic.pairs.map((p) => (p.id === pair.id ? pair : p))
+  await persistTopic({ ...topic, pairs: nextPairs })
 }
 
+/** 在活动专题中删除 pair */
 export async function removePair(id: string): Promise<void> {
-  const { dbDeletePair } = await import('@/lib/db')
-  await dbDeletePair(id)
-  const cur = internalStore.get(deckAtom)
-  storeSet(deckAtom, cur.filter((p) => p.id !== id))
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({
+    ...topic,
+    pairs: topic.pairs.filter((p) => p.id !== id),
+  })
 }
 
-export async function persistText(text: TextItem): Promise<void> {
-  await dbPutText(text)
-  const cur = internalStore.get(textsAtom)
-  const idx = cur.findIndex((t) => t.id === text.id)
-  const next = cur.slice()
-  if (idx === -1) next.push(text)
-  else next[idx] = text
-  storeSet(textsAtom, next)
-}
-
-export async function removeText(id: string): Promise<void> {
-  await dbDeleteTextLite(id)
-  const cur = internalStore.get(textsAtom)
-  storeSet(textsAtom, cur.filter((t) => t.id !== id))
-}
-
-// 避免循环依赖，单独 import
-async function dbDeleteTextLite(id: string): Promise<void> {
-  const { dbDeleteText } = await import('@/lib/db')
-  await dbDeleteText(id)
-}
-
+/** 清空活动专题的所有 pair */
 export async function resetAllPairs(): Promise<void> {
-  await dbClearPairs()
-  storeSet(deckAtom, [])
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({ ...topic, pairs: [] })
 }
 
-export async function resetAllTexts(): Promise<void> {
-  await dbClearTexts()
-  storeSet(textsAtom, [])
-}
-
-/** 重置某 pair 的学习记录 */
+/** 重置活动专题中某 pair 的学习记录 */
 export async function resetPairStats(id: string): Promise<void> {
-  const cur = internalStore.get(deckAtom)
-  const pair = cur.find((p) => p.id === id)
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const pair = topic.pairs.find((p) => p.id === id)
   if (!pair) return
   const next: PairItem = { ...pair, stats: { lr: 0, rl: 0 } as PairStats }
   await persistPair(next)
 }
+
+/** 批量替换活动专题的 pair（用于导入/恢复默认） */
+export async function persistDeck(pairs: PairItem[]): Promise<void> {
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({ ...topic, pairs })
+}
+
+// ----- Text 级别（操作活动专题）-----
+
+/** 在活动专题中新增或更新 text */
+export async function persistText(text: TextItem): Promise<void> {
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const idx = topic.texts.findIndex((t) => t.id === text.id)
+  const nextTexts =
+    idx === -1
+      ? [...topic.texts, text]
+      : topic.texts.map((t) => (t.id === text.id ? text : t))
+  await persistTopic({ ...topic, texts: nextTexts })
+}
+
+/** 在活动专题中删除 text */
+export async function removeText(id: string): Promise<void> {
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({
+    ...topic,
+    texts: topic.texts.filter((t) => t.id !== id),
+  })
+}
+
+/** 清空活动专题的所有 text */
+export async function resetAllTexts(): Promise<void> {
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({ ...topic, texts: [] })
+}
+
+/** 批量替换活动专题的 text（用于导入/恢复默认） */
+export async function persistTexts(texts: TextItem[]): Promise<void> {
+  const topicId = getActiveTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({ ...topic, texts })
+}
+
+// ----- 跨专题查找文本 -----
+
+/** 按 textId 在所有专题中查找所属文本与专题 */
+export function findTextInTopics(
+  topics: Topic[],
+  textId: string,
+): { text: TextItem; topic: Topic } | null {
+  for (const topic of topics) {
+    const text = topic.texts.find((t) => t.id === textId)
+    if (text) return { text, topic }
+  }
+  return null
+}
+
+// ----- 设置 -----
 
 /** 设置同步到 IndexedDB（settingsAtom 已自动 localStorage 持久化） */
 export async function persistSettings(settings: AppSettings): Promise<void> {
@@ -206,26 +362,10 @@ export async function loadSettingsFromDB(): Promise<AppSettings | undefined> {
   return dbGetSetting<AppSettings>('settings')
 }
 
-// ===== Hook 辅助（让组件更简洁） =====
-
-export function useDeckValue(): PairItem[] {
-  return useAtomValue(deckAtom)
-}
-
-export function useTextsValue(): TextItem[] {
-  return useAtomValue(textsAtom)
-}
+// ===== Hook 辅助 =====
 
 export function useSettingsValue(): AppSettings {
   return useAtomValue(settingsAtom)
-}
-
-export function useSetDeck() {
-  return useSetAtom(deckAtom)
-}
-
-export function useSetTexts() {
-  return useSetAtom(textsAtom)
 }
 
 export function useSetSettings() {

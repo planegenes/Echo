@@ -1,25 +1,22 @@
 import { useCallback } from 'react'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import type { PairItem } from '@/types'
 import {
-  deckAtom,
+  activeDeckAtom,
   persistDeck,
   persistPair,
   removePair as removePairAtom,
   resetAllPairs,
   resetPairStats,
 } from '@/store/atoms'
-import { dbBulkPutPairs } from '@/lib/db'
 import defaultPairs from '@/presets/default-pairs.json'
 
 /**
- * 配对题库操作
+ * 配对题库操作（操作活动专题）
  * - 与 IndexedDB 同步
- * - 详见 spec 第 4、5、7 节
  */
 export function useDeck() {
-  const deck = useAtomValue(deckAtom)
-  const setDeck = useSetAtom(deckAtom)
+  const deck = useAtomValue(activeDeckAtom)
 
   const add = useCallback(async (pair: PairItem) => {
     await persistPair(pair)
@@ -42,14 +39,9 @@ export function useDeck() {
   }, [])
 
   /** 批量替换（用于导入） */
-  const replaceAll = useCallback(
-    async (pairs: PairItem[]) => {
-      await resetAllPairs()
-      await dbBulkPutPairs(pairs)
-      setDeck(pairs)
-    },
-    [setDeck],
-  )
+  const replaceAll = useCallback(async (pairs: PairItem[]) => {
+    await persistDeck(pairs)
+  }, [])
 
   /** 合并导入（保留已有） */
   const mergeImport = useCallback(
@@ -62,13 +54,11 @@ export function useDeck() {
     [deck],
   )
 
-  /** 恢复默认数据（替换） */
+  /** 恢复默认数据（替换活动专题的 pair） */
   const restoreDefaults = useCallback(async () => {
-    await resetAllPairs()
     const defaults = defaultPairs as PairItem[]
-    await dbBulkPutPairs(defaults)
-    setDeck(defaults)
-  }, [setDeck])
+    await persistDeck(defaults)
+  }, [])
 
   return {
     deck,

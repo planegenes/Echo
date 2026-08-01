@@ -1,10 +1,10 @@
 import { z } from 'zod'
-import type { PairItem, Snapshot, TextItem } from '@/types'
+import type { PairItem, Snapshot, TextItem, Topic } from '@/types'
 import { uid } from './utils'
 
 /**
  * 导入/导出与 zod 校验
- * 详见 spec 3.4：导入时校验结构；缺少 stats 的 pair 自动补 { lr: 0, rl: 0 }
+ * v2: 快照格式为 topics 列表；兼容旧版 pairs/texts 格式
  */
 
 const contentSchema = z.object({
@@ -31,9 +31,18 @@ const textSchema = z.object({
   content: z.string().min(1),
 })
 
-const snapshotSchema = z.object({
+const topicSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
   pairs: z.array(pairSchema).default([]),
   texts: z.array(textSchema).default([]),
+})
+
+// 兼容旧版：topics 或 pairs+texts
+const snapshotSchema = z.object({
+  topics: z.array(topicSchema).optional(),
+  pairs: z.array(pairSchema).optional(),
+  texts: z.array(textSchema).optional(),
 })
 
 export interface ParseResult {
@@ -42,34 +51,56 @@ export interface ParseResult {
   error?: string
 }
 
-/** 校验并规范化导入的快照 JSON */
+/** 校验并规范化导入的快照 JSON（兼容旧版 pairs/texts 格式） */
 export function parseSnapshot(input: unknown): ParseResult {
   const result = snapshotSchema.safeParse(input)
   if (!result.success) {
     return { ok: false, error: result.error.message }
   }
-  const data = result.data as Snapshot
-  // 规范化 stats
-  data.pairs = data.pairs.map((p) => ({
-    ...p,
-    stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
-  }))
-  return { ok: true, data }
+  const r = result.data
+  let topics: Topic[]
+
+  if (r.topics && r.topics.length > 0) {
+    // 新格式：直接使用 topics
+    topics = r.topics.map((t) => ({
+      id: t.id,
+      name: t.name,
+      pairs: t.pairs.map((p) => ({
+        ...p,
+        stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
+      })),
+      texts: t.texts.slice(),
+    }))
+  } else {
+    // 旧格式：将 pairs + texts 包装为单个专题
+    const pairs = (r.pairs ?? []).map((p) => ({
+      ...p,
+      stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
+    }))
+    const texts = (r.texts ?? []).slice()
+    topics = [{ id: uid('topic'), name: '测试题库', pairs, texts }]
+  }
+
+  return { ok: true, data: { topics } }
 }
 
 /** 导出当前数据为快照 */
-export function buildSnapshot(pairs: PairItem[], texts: TextItem[]): Snapshot {
+export function buildSnapshot(topics: Topic[]): Snapshot {
   return {
-    pairs: pairs.map((p) => ({
-      ...p,
-      stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
+    topics: topics.map((t) => ({
+      id: t.id,
+      name: t.name,
+      pairs: t.pairs.map((p) => ({
+        ...p,
+        stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
+      })),
+      texts: t.texts.slice(),
     })),
-    texts: texts.slice(),
   }
 }
 
 /** 下载为 JSON 文件 */
-export function downloadSnapshot(snapshot: Snapshot, filename = 'pair-quiz-snapshot.json'): void {
+export function downloadSnapshot(snapshot: Snapshot, filename = 'echo-snapshot.json'): void {
   const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
     type: 'application/json',
   })
@@ -94,14 +125,18 @@ export function readSnapshotFile(file: File): Promise<ParseResult> {
     }))
 }
 
-/** 为导入的 pair/text 衺充缺失的 id（若上游缺失） */
+/** 为导入的 pair/text/topic 补充缺失的 id */
 export function ensureIds(snapshot: Snapshot): Snapshot {
   return {
-    pairs: snapshot.pairs.map((p) =>
-      p.id ? p : { ...p, id: uid('pair') },
-    ) as PairItem[],
-    texts: snapshot.texts.map((t) =>
-      t.id ? t : { ...t, id: uid('text') },
-    ) as TextItem[],
+    topics: snapshot.topics.map((t) => ({
+      id: t.id || uid('topic'),
+      name: t.name,
+      pairs: t.pairs.map((p) =>
+        p.id ? p : { ...p, id: uid('pair') },
+      ) as PairItem[],
+      texts: t.texts.map((t2) =>
+        t2.id ? t2 : { ...t2, id: uid('text') },
+      ) as TextItem[],
+    })),
   }
 }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import type { FillBlankResult, ParsedText, TextItem } from '@/types'
-import { textsAtom, type FillSelectSession } from '@/store/atoms'
+import { topicsAtom, findTextInTopics, type FillSelectSession } from '@/store/atoms'
 import { buildBlankPad, collectAllBlankAnswers, parseText } from '@/lib/parser'
 import { randInt, sampleN, shuffle, uid } from '@/lib/utils'
 
@@ -73,12 +73,15 @@ function prepareOptions(
 }
 
 export function useFillSelectEngine(textId: string | null) {
-  const texts = useAtomValue(textsAtom)
+  const topics = useAtomValue(topicsAtom)
 
-  const text = useMemo(
-    () => texts.find((t) => t.id === textId) ?? null,
-    [texts, textId],
-  )
+  const { text, topicTexts } = useMemo(() => {
+    if (!textId) return { text: null, topicTexts: [] as TextItem[] }
+    const found = findTextInTopics(topics, textId)
+    return found
+      ? { text: found.text, topicTexts: found.topic.texts }
+      : { text: null, topicTexts: [] as TextItem[] }
+  }, [topics, textId])
 
   const parsed = useMemo(
     () => (text ? parseText(text.content) : null),
@@ -102,7 +105,7 @@ export function useFillSelectEngine(textId: string | null) {
       setState({ session: null, results: null, selectedOptionId: null })
       return
     }
-    const { options, answerMap } = prepareOptions(parsed, texts)
+    const { options, answerMap } = prepareOptions(parsed, topicTexts)
     const filled: Record<string, string | null> = {}
     for (const b of parsed.blanks) filled[b.id] = null
     // answerMap 不直接进 session（避免冗余），通过闭包持有
@@ -117,7 +120,7 @@ export function useFillSelectEngine(textId: string | null) {
       results: null,
       selectedOptionId: null,
     })
-  }, [text, parsed, texts])
+  }, [text, parsed, topicTexts])
 
   const answerMapRef = useState<{ current: Map<string, string> | null }>(
     () => ({ current: null }),

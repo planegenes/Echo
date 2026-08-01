@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import type { FillBlankResult } from '@/types'
-import { textsAtom, settingsAtom, type FillInputSession } from '@/store/atoms'
+import { topicsAtom, findTextInTopics, settingsAtom, type FillInputSession } from '@/store/atoms'
 import { buildBlankPad, parseText } from '@/lib/parser'
 import { isAiConfigured, judgeBlanks } from '@/lib/ai'
 import type { AiJudgeRequest } from '@/types'
@@ -20,13 +20,13 @@ interface FillInputState {
 }
 
 export function useFillInputEngine(textId: string | null) {
-  const texts = useAtomValue(textsAtom)
+  const topics = useAtomValue(topicsAtom)
   const settings = useAtomValue(settingsAtom)
 
-  const text = useMemo(
-    () => texts.find((t) => t.id === textId) ?? null,
-    [texts, textId],
-  )
+  const text = useMemo(() => {
+    if (!textId) return null
+    return findTextInTopics(topics, textId)?.text ?? null
+  }, [topics, textId])
 
   const parsed = useMemo(
     () => (text ? parseText(text.content) : null),

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { PairItem, TextItem } from '@/types'
+import type { Topic } from '@/types'
 import { Button } from '@/components/ui/button'
 import {
   Download,
@@ -16,11 +16,9 @@ import {
 } from '@/lib/importExport'
 
 export interface ImportExportPanelProps {
-  pairs: PairItem[]
-  texts: TextItem[]
-  onImport: (pairs: PairItem[], texts: TextItem[]) => void | Promise<void>
-  onRestorePairs: () => void | Promise<void>
-  onRestoreTexts: () => void | Promise<void>
+  topics: Topic[]
+  onImport: (topics: Topic[]) => void | Promise<void>
+  onRestoreDefaults: () => void | Promise<void>
 }
 
 type Notice =
@@ -30,22 +28,20 @@ type Notice =
 
 /**
  * JSON 导入导出面板
- * - 导出当前数据为 JSON 文件
- * - 从文件导入，自动校验（zod），缺少 stats 的 pair 补 0
+ * - 导出当前所有专题为 JSON 文件
+ * - 从文件导入，自动校验（zod），兼容旧版 pairs/texts 格式
  * - 恢复默认数据
  */
 export function ImportExportPanel({
-  pairs,
-  texts,
+  topics,
   onImport,
-  onRestorePairs,
-  onRestoreTexts,
+  onRestoreDefaults,
 }: ImportExportPanelProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<Notice>(null)
 
   const handleExport = () => {
-    const snapshot = buildSnapshot(pairs, texts)
+    const snapshot = buildSnapshot(topics)
     downloadSnapshot(snapshot)
     setNotice({ kind: 'success', message: '已导出 JSON 文件' })
   }
@@ -58,10 +54,12 @@ export function ImportExportPanel({
     }
     const normalized = ensureIds(result.data)
     try {
-      await onImport(normalized.pairs, normalized.texts)
+      await onImport(normalized.topics)
+      const totalPairs = normalized.topics.reduce((s, t) => s + t.pairs.length, 0)
+      const totalTexts = normalized.topics.reduce((s, t) => s + t.texts.length, 0)
       setNotice({
         kind: 'success',
-        message: `已导入 ${normalized.pairs.length} 组 pair 与 ${normalized.texts.length} 段文本`,
+        message: `已导入 ${normalized.topics.length} 个专题（${totalPairs} 组配对、${totalTexts} 段文本）`,
       })
     } catch (err) {
       setNotice({
@@ -102,13 +100,9 @@ export function ImportExportPanel({
       </div>
 
       <div className="flex flex-wrap gap-2 border-t pt-3">
-        <Button variant="ghost" size="sm" onClick={() => onRestorePairs()}>
+        <Button variant="ghost" size="sm" onClick={() => onRestoreDefaults()}>
           <RotateCcw className="h-4 w-4" />
-          恢复默认 pair
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => onRestoreTexts()}>
-          <RotateCcw className="h-4 w-4" />
-          恢复默认文本
+          恢复默认题库
         </Button>
       </div>
 

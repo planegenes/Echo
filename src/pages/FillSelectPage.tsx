@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { FillSelectGame } from '@/components/FillSelectGame'
+import { TopicSelector } from '@/components/TopicSelector'
 import { Label } from '@/components/ui/label'
 import { useTexts } from '@/hooks/useTexts'
 import { countBlanks } from '@/lib/parser'
@@ -9,7 +10,7 @@ import { countBlanks } from '@/lib/parser'
 /**
  * 选词填空页面
  * - URL /fill/select/:textId 直接进入对应文本
- * - 否则提供文本选择器
+ * - 否则提供文本选择器（来自活动专题）
  */
 export default function FillSelectPage() {
   const params = useParams<{ textId: string }>()
@@ -17,11 +18,10 @@ export default function FillSelectPage() {
   const textsApi = useTexts()
   const [selectedId, setSelectedId] = useState<string | null>(urlTextId)
 
-  // URL 中携带 textId 时优先使用
   const effectiveId = urlTextId ?? selectedId
 
   return (
-    <AppShell title="选词填空">
+    <AppShell title="选词填空" extra={<TopicSelector />}>
       <div className="space-y-4">
         {!urlTextId && (
           <div className="space-y-1.5">
