@@ -20,6 +20,22 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
+/**
+ * 阻止浏览器默认 touchmove 行为（如 Android Edge 下拉刷新）。
+ * 模块级函数保证 add/remove 引用一致。
+ */
+function preventTouchMove(e: TouchEvent) {
+  if (e.cancelable) e.preventDefault()
+}
+
+function lockTouchMove() {
+  window.addEventListener('touchmove', preventTouchMove, { passive: false })
+}
+
+function unlockTouchMove() {
+  window.removeEventListener('touchmove', preventTouchMove)
+}
+
 export interface FillSelectGameProps {
   textId: string | null
 }
@@ -45,12 +61,18 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
     }
   }, [engine])
 
+  // 组件卸载时保险性移除监听（避免内存泄漏）
+  useEffect(() => unlockTouchMove, [])
+
   const onDragStart = (e: DragStartEvent) => {
     setActiveId(String(e.active.id))
+    // 锁定浏览器默认 touchmove（防止 Android Edge 下拉刷新拦截拖动）
+    lockTouchMove()
   }
 
   const onDragEnd = (e: DragEndEvent) => {
     setActiveId(null)
+    unlockTouchMove()
     const { active, over } = e
     if (!over) return
     const activeId = String(active.id)
@@ -129,7 +151,10 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
           sensors={sensors}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
-          onDragCancel={() => setActiveId(null)}
+          onDragCancel={() => {
+            setActiveId(null)
+            unlockTouchMove()
+          }}
         >
           <div className="rounded-lg border bg-muted/20 p-4 text-base">
             <TextRenderer

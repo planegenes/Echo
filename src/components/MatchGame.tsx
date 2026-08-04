@@ -75,7 +75,9 @@ export function MatchGame() {
 
   const { session } = engine
   const lookup = (id: string) => session!.pairs.find((p) => p.id === id)!
-  const { justMatchedId, justWrongIds } = engine
+  const { justMatchedId, justWrongIds, markedIrrelevantIds } = engine
+  const isIrrelevant = (id: string, side: 'left' | 'right') =>
+    markedIrrelevantIds.includes(`${id}:${side}`)
 
   return (
     <div className="space-y-4">
@@ -113,6 +115,8 @@ export function MatchGame() {
                     justMatched={justMatchedId === id}
                     justWrong={justWrongIds?.left === id}
                     faded={!!justMatchedId && justMatchedId !== id}
+                    markedIrrelevant={isIrrelevant(id, 'left')}
+                    onLongPress={() => engine.toggleIrrelevant(id, 'left')}
                     onClick={() => engine.selectLeft(id)}
                   />
                 )
@@ -131,6 +135,8 @@ export function MatchGame() {
                     justMatched={justMatchedId === id}
                     justWrong={justWrongIds?.right === id}
                     faded={!!justMatchedId && justMatchedId !== id}
+                    markedIrrelevant={isIrrelevant(id, 'right')}
+                    onLongPress={() => engine.toggleIrrelevant(id, 'right')}
                     onClick={() => engine.selectRight(id)}
                   />
                 )
@@ -139,8 +145,8 @@ export function MatchGame() {
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
             {difficulty === 'hard'
-              ? '困难模式：左右各 5 个选项，只有一组能正确配对。'
-              : '提示：左右各选一个即可判定。选对即重开新一把。'}
+              ? '困难模式：左右各 5 个选项，只有一组能正确配对。长按可标记无关选项，再次长按取消。'
+              : '提示：左右各选一个即可判定。选对即重开新一把。长按可标记无关选项，再次长按取消。'}
           </p>
         </CardContent>
       </Card>

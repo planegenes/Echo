@@ -5,6 +5,7 @@ import { PairForm } from '@/components/PairForm'
 import { TextList } from '@/components/TextList'
 import { TextForm } from '@/components/TextForm'
 import { ImportExportPanel } from '@/components/ImportExportPanel'
+import { AiGenerateDialog } from '@/components/AiGenerateDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -44,6 +45,9 @@ export default function ManagePairsPage() {
   // 文本 Dialog
   const [textDialogOpen, setTextDialogOpen] = useState(false)
   const [editingText, setEditingText] = useState<TextItem | null>(null)
+
+  // AI 批量生成 Dialog
+  const [aiDialogOpen, setAiDialogOpen] = useState(false)
 
   // 新增专题 Dialog
   const [topicDialogOpen, setTopicDialogOpen] = useState(false)
@@ -129,6 +133,19 @@ export default function ManagePairsPage() {
     else await textsApi.add(text)
     setTextDialogOpen(false)
     setEditingText(null)
+  }
+
+  // ----- AI 批量生成 -----
+  const openAiGenerate = () => {
+    setAiDialogOpen(true)
+  }
+
+  const handleAiConfirm = async (items: PairItem[] | TextItem[]) => {
+    if (tab === 'pairs') {
+      await deckApi.mergeImport(items as PairItem[])
+    } else {
+      await textsApi.mergeImport(items as TextItem[])
+    }
   }
 
   // ----- 导入导出 -----
@@ -280,6 +297,7 @@ export default function ManagePairsPage() {
             onEdit={openEditPair}
             onDelete={(id) => void deckApi.remove(id)}
             onResetStats={(id) => void deckApi.resetStats(id)}
+            onAiGenerate={openAiGenerate}
           />
         )}
         {tab === 'texts' && activeTopic && (
@@ -288,6 +306,7 @@ export default function ManagePairsPage() {
             onAdd={openAddText}
             onEdit={openEditText}
             onDelete={(id) => void textsApi.remove(id)}
+            onAiGenerate={openAiGenerate}
           />
         )}
 
@@ -385,6 +404,14 @@ export default function ManagePairsPage() {
         />
         <DialogClose />
       </Dialog>
+
+      {/* AI 批量生成 Dialog */}
+      <AiGenerateDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        topicType={tab}
+        onConfirm={handleAiConfirm}
+      />
     </AppShell>
   )
 }

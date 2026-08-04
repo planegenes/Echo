@@ -31,7 +31,7 @@ export function isAiConfigured(settings: Pick<AppSettings, 'aiEndpoint' | 'aiApi
 }
 
 /** 构造 OpenAI 兼容风格的 messages payload */
-function buildPayload(req: AiJudgeRequest): unknown {
+function buildPayload(req: AiJudgeRequest, model: string): unknown {
   const blanksBlock = req.blanks
     .map(
       (b, i) =>
@@ -51,7 +51,7 @@ function buildPayload(req: AiJudgeRequest): unknown {
       .join(', ')}`
 
   return {
-    model: 'gpt-4o-mini',
+    model: model || 'gpt-4o-mini',
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -129,7 +129,7 @@ export async function judgeBlanks(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${settings.aiApiKey}`,
     },
-    body: JSON.stringify(buildPayload(req)),
+    body: JSON.stringify(buildPayload(req, settings.aiModel)),
   })
 
   if (!res.ok) {
@@ -156,3 +156,38 @@ export async function judgeBlanks(
 
   return { results: finalResults }
 }
+
+/**
+ * 获取可用模型列表（OpenAI 兼容 /models 接口）
+ * @returns 模型 id 字符串数组
+ */
+export async function fetchAvailableModels(settings: AppSettings): Promise<string[]> {
+  if (!isAiConfigured(settings)) {
+    throw new AiConfigError('AI 接口未配置，请先到设置页填写 endpoint 与 api key')
+  }
+
+  const endpoint = settings.aiEndpoint.replace(/\/$/, '')
+  const url = endpoint.endsWith('/models')
+    ? endpoint
+    : `${endpoint}/models`
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${settings.aiApiKey}`,
+    },
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new AiResponseError(`获取模型列表失败 ${res.status}: ${text.slice(0, 200)}`)
+  }
+
+  const data = await res.json()
+  const arr = (data as { data?: Array<{ id?: string }> }).data
+  if (!Array.isArray(arr)) return []
+  return arr
+    .map((m) => m.id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+}
+

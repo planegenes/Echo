@@ -48,6 +48,7 @@ export const settingsAtom = atomWithStorage<AppSettings>('pair-quiz:settings', {
   darkMode: false,
   aiEndpoint: '',
   aiApiKey: '',
+  aiModel: 'gpt-4o-mini',
 })
 
 // ===== 派生状态 =====

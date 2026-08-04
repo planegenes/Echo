@@ -32,6 +32,7 @@ export function useSettings() {
       darkMode: false,
       aiEndpoint: '',
       aiApiKey: '',
+      aiModel: 'gpt-4o-mini',
     }
     setSettings(defaults)
     await persistSettings(defaults)

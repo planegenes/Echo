@@ -70,6 +70,8 @@ export interface AppSettings {
   darkMode: boolean
   aiEndpoint: string
   aiApiKey: string
+  /** 模型名（OpenAI 兼容，如 gpt-4o-mini、deepseek-v4-flash） */
+  aiModel: string
 }
 
 // ===== 测验会话状态 =====

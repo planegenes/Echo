@@ -25,11 +25,18 @@ interface ChoiceEngineState {
   session: ChoiceSession | null
   score: number
   errors: number
+  /** 本题被长按标记为无关的 option id 列表（下题自动清空） */
+  markedIrrelevantIds: string[]
+  /** 最近 3 题出现过的 pair id（用于间隔控制） */
+  recentPairIds: string[]
 }
 
 const MIN_DECK = 2
 
-function pickQuestion(deck: PairItem[]): {
+function pickQuestion(
+  deck: PairItem[],
+  recentPairIds: string[],
+): {
   pair: PairItem
   direction: ChoiceDirection
   prompt: Content
@@ -38,14 +45,18 @@ function pickQuestion(deck: PairItem[]): {
 } | null {
   if (deck.length < MIN_DECK) return null
 
+  // 排除最近 3 题出现过的 pair（间隔 ≥ 3）
+  const available = deck.filter((p) => !recentPairIds.includes(p.id))
+  const pool = available.length >= MIN_DECK ? available : deck
+
   const direction: ChoiceDirection = Math.random() < 0.5 ? 'askLeft' : 'askRight'
-  const weights = deck.map((p) => {
+  const weights = pool.map((p) => {
     const stat = direction === 'askLeft' ? p.stats?.lr ?? 0 : p.stats?.rl ?? 0
     return 1 + stat
   })
 
   // 加权抽 1 个 pair
-  const [pair] = weightedSampleN(deck, weights, 1)
+  const [pair] = weightedSampleN(pool, weights, 1)
   if (!pair) return null
 
   const prompt = direction === 'askLeft' ? pair.left : pair.right
@@ -110,6 +121,8 @@ export function useChoiceEngine() {
     session: null,
     score: 0,
     errors: 0,
+    markedIrrelevantIds: [],
+    recentPairIds: [],
   })
 
   const applyStats = useCallback(
@@ -130,27 +143,36 @@ export function useChoiceEngine() {
   )
 
   const next = useCallback(() => {
-    const q = pickQuestion(deck)
-    if (!q) {
-      setState((s) => ({ ...s, session: null }))
-      return
-    }
-    setState((prev) => ({
-      ...prev,
-      session: {
-        pair: q.pair,
-        direction: q.direction,
-        prompt: { format: q.prompt.format, value: q.prompt.value },
-        answerValue: q.answer.value,
-        options: q.options,
-        selectedId: null,
-        resolved: 'idle',
-      },
-    }))
+    setState((prev) => {
+      // 更新最近 3 题的 pair id 记录
+      const currentPairId = prev.session?.pair.id
+      const recent = currentPairId
+        ? [...prev.recentPairIds, currentPairId].slice(-3)
+        : prev.recentPairIds
+
+      const q = pickQuestion(deck, recent)
+      if (!q) {
+        return { ...prev, session: null, markedIrrelevantIds: [], recentPairIds: recent }
+      }
+      return {
+        ...prev,
+        session: {
+          pair: q.pair,
+          direction: q.direction,
+          prompt: { format: q.prompt.format, value: q.prompt.value },
+          answerValue: q.answer.value,
+          options: q.options,
+          selectedId: null,
+          resolved: 'idle',
+        },
+        markedIrrelevantIds: [],
+        recentPairIds: recent,
+      }
+    })
   }, [deck])
 
   const start = useCallback(() => {
-    setState({ session: null, score: 0, errors: 0 })
+    setState({ session: null, score: 0, errors: 0, markedIrrelevantIds: [], recentPairIds: [] })
     next()
   }, [next])
 
@@ -158,6 +180,8 @@ export function useChoiceEngine() {
     (optionId: string) => {
       setState((prev) => {
         if (!prev.session || prev.session.resolved !== 'idle') return prev
+        // 已标记为无关的不再可选（保险，正常已被 ChoiceOption 拦截）
+        if (prev.markedIrrelevantIds.includes(optionId)) return prev
         const option = prev.session.options.find((o) => o.id === optionId)
         if (!option) return prev
         const correct = option.value === prev.session.answerValue
@@ -186,6 +210,27 @@ export function useChoiceEngine() {
     [applyStats],
   )
 
+  /** 长按标记/取消标记为无关选项（仅当前题有效） */
+  const toggleIrrelevant = useCallback((optionId: string) => {
+    setState((prev) => {
+      if (!prev.session || prev.session.resolved !== 'idle') return prev
+      const exists = prev.markedIrrelevantIds.includes(optionId)
+      const nextIds = exists
+        ? prev.markedIrrelevantIds.filter((id) => id !== optionId)
+        : [...prev.markedIrrelevantIds, optionId]
+      return {
+        ...prev,
+        markedIrrelevantIds: nextIds,
+        // 取消标记时不清除 selectedId（选项未被选中过）；
+        // 标记时如果该项被选中，清除选中
+        session:
+          !exists && prev.session.selectedId === optionId
+            ? { ...prev.session, selectedId: null }
+            : prev.session,
+      }
+    })
+  }, [])
+
   const canPlay = deck.length >= MIN_DECK
 
   return {
@@ -194,8 +239,10 @@ export function useChoiceEngine() {
     session: state.session,
     score: state.score,
     errors: state.errors,
+    markedIrrelevantIds: state.markedIrrelevantIds,
     start,
     next,
     selectOption,
+    toggleIrrelevant,
   }
 }

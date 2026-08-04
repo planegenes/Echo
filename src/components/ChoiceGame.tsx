@@ -47,6 +47,7 @@ export function ChoiceGame() {
 
   const { session } = engine
   const resolved = session.resolved !== 'idle'
+  const isIrrelevant = (id: string) => engine.markedIrrelevantIds.includes(id)
 
   return (
     <div className="space-y-4">
@@ -91,11 +92,19 @@ export function ChoiceGame() {
                 selected={session.selectedId === opt.id}
                 resolved={session.resolved}
                 isCorrectAnswer={opt.value === session.answerValue}
+                markedIrrelevant={isIrrelevant(opt.id)}
+                onLongPress={() => engine.toggleIrrelevant(opt.id)}
                 disabled={resolved}
                 onClick={() => engine.selectOption(opt.id)}
               />
             ))}
           </div>
+
+          {!resolved && (
+            <p className="text-xs text-muted-foreground">
+              长按可标记无关选项，再次长按取消。
+            </p>
+          )}
 
           {resolved && (
             <div className="flex justify-end">

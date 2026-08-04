@@ -4,7 +4,7 @@ import type { TextItem } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, Search, ListChecks, PenLine } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, ListChecks, PenLine, Sparkles } from 'lucide-react'
 import { countBlanks } from '@/lib/parser'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
@@ -14,6 +14,7 @@ export interface TextListProps {
   onAdd: () => void
   onEdit: (text: TextItem) => void
   onDelete: (id: string) => void
+  onAiGenerate?: () => void
 }
 
 const PAGE_SIZE = 8
@@ -21,7 +22,7 @@ const PAGE_SIZE = 8
 /**
  * 文本列表
  */
-export function TextList({ texts, onAdd, onEdit, onDelete }: TextListProps) {
+export function TextList({ texts, onAdd, onEdit, onDelete, onAiGenerate }: TextListProps) {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
 
@@ -53,6 +54,12 @@ export function TextList({ texts, onAdd, onEdit, onDelete }: TextListProps) {
           <Plus className="h-4 w-4" />
           新增
         </Button>
+        {onAiGenerate && (
+          <Button variant="outline" onClick={onAiGenerate}>
+            <Sparkles className="h-4 w-4" />
+            AI 生成
+          </Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (

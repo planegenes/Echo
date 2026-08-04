@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ContentRenderer } from '@/components/ContentRenderer'
-import { Plus, Pencil, Trash2, Search, RotateCcw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, RotateCcw, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface PairListProps {
@@ -13,6 +13,7 @@ export interface PairListProps {
   onEdit: (pair: PairItem) => void
   onDelete: (id: string) => void
   onResetStats: (id: string) => void
+  onAiGenerate?: () => void
 }
 
 const PAGE_SIZE = 10
@@ -26,6 +27,7 @@ export function PairList({
   onEdit,
   onDelete,
   onResetStats,
+  onAiGenerate,
 }: PairListProps) {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
@@ -62,6 +64,12 @@ export function PairList({
           <Plus className="h-4 w-4" />
           新增
         </Button>
+        {onAiGenerate && (
+          <Button variant="outline" onClick={onAiGenerate}>
+            <Sparkles className="h-4 w-4" />
+            AI 生成
+          </Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (

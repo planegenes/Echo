@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Home, Layers, FileText, BookOpen, Settings, Sun, Moon } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { Logo } from '@/components/Logo'
 import { cn } from '@/lib/utils'
 import { useSettingsValue, useSetSettings } from '@/store/atoms'
 
@@ -55,23 +56,7 @@ export function AppShell({ children, title, extra }: AppShellProps) {
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
           <Link to="/" className="flex items-center gap-2 font-semibold select-none">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground overflow-hidden">
-              <svg width="28" height="28" viewBox="0 0 28 28" className="fill-current" aria-label="Echo">
-                <text
-                  x="14"
-                  y="14"
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontSize="16"
-                  fontWeight="700"
-                  textLength="16"
-                  lengthAdjust="spacingAndGlyphs"
-                >
-                  <tspan fill="#41b349">E</tspan>
-                  <tspan dx="2">c</tspan>
-                  <tspan dx="2">h</tspan>
-                  <tspan dx="2">o</tspan>
-                </text>
-              </svg>
+              <Logo size={28} className="fill-current" />
             </span>
             <span className="hidden sm:inline">回响</span>
           </Link>

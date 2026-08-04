@@ -34,6 +34,10 @@ interface MatchEngineState {
   roundKey: number
   /** 当前难度 */
   difficulty: Difficulty
+  /** 本回合被长按标记为无关的卡片标识列表（格式 `${pairId}:${side}`，左右独立，下回合自动清空） */
+  markedIrrelevantIds: string[]
+  /** 最近 3 回合出现过的 pair id（每回合为数组，用于间隔控制） */
+  recentRounds: string[][]
 }
 
 interface HardPick {
@@ -44,21 +48,14 @@ interface HardPick {
 
 function pickRound(
   deck: PairItem[],
-  lastPairIds: string[],
+  recentPairIds: string[],
 ): PairItem[] | null {
   if (deck.length < ROUND_SIZE) return null
-  const weights = deck.map((p) => 1 + (p.stats?.lr ?? 0) + (p.stats?.rl ?? 0))
-  const lastKey = [...lastPairIds].sort().join('|')
-
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const picks = weightedSampleN(deck, weights, ROUND_SIZE)
-    const key = picks.map((p) => p.id).sort().join('|')
-    if (key !== lastKey) return picks
-  }
-  // 兜底：尽量避开上一轮（移除已用过的）
-  const remaining = deck.filter((p) => !lastPairIds.includes(p.id))
-  const pool = remaining.length >= ROUND_SIZE ? remaining : deck
-  return sampleN(pool, ROUND_SIZE)
+  // 排除最近 3 回合出现过的 pair（间隔 ≥ 3）
+  const available = deck.filter((p) => !recentPairIds.includes(p.id))
+  const pool = available.length >= ROUND_SIZE ? available : deck
+  const weights = pool.map((p) => 1 + (p.stats?.lr ?? 0) + (p.stats?.rl ?? 0))
+  return weightedSampleN(pool, weights, ROUND_SIZE)
 }
 
 function weightedSampleN<T>(items: T[], weights: number[], n: number): T[] {
@@ -98,27 +95,14 @@ function buildSession(pairs: PairItem[], lastPairIds: string[]): MatchSession {
 /** 困难模式抽取：1 正确 + 4 左干扰 + 4 右干扰，共 9 组互不相同的 pair */
 function pickRoundHard(
   deck: PairItem[],
-  lastPairIds: string[],
+  recentPairIds: string[],
 ): HardPick | null {
   if (deck.length < HARD_TOTAL) return null
-  const weights = deck.map((p) => 1 + (p.stats?.lr ?? 0) + (p.stats?.rl ?? 0))
-  const lastKey = [...lastPairIds].sort().join('|')
-
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const picks = weightedSampleN(deck, weights, HARD_TOTAL)
-    const key = picks.map((p) => p.id).sort().join('|')
-    if (key !== lastKey) {
-      return {
-        correct: picks[0],
-        leftDistractors: picks.slice(1, 5),
-        rightDistractors: picks.slice(5, 9),
-      }
-    }
-  }
-  // 兜底：尽量避开上一轮
-  const remaining = deck.filter((p) => !lastPairIds.includes(p.id))
-  const pool = remaining.length >= HARD_TOTAL ? remaining : deck
-  const picks = sampleN(pool, HARD_TOTAL)
+  // 排除最近 3 回合出现过的 pair（间隔 ≥ 3）
+  const available = deck.filter((p) => !recentPairIds.includes(p.id))
+  const pool = available.length >= HARD_TOTAL ? available : deck
+  const weights = pool.map((p) => 1 + (p.stats?.lr ?? 0) + (p.stats?.rl ?? 0))
+  const picks = weightedSampleN(pool, weights, HARD_TOTAL)
   return {
     correct: picks[0],
     leftDistractors: picks.slice(1, 5),
@@ -158,6 +142,8 @@ export function useMatchEngine() {
     justWrongIds: null,
     roundKey: 0,
     difficulty: 'normal',
+    markedIrrelevantIds: [],
+    recentRounds: [],
   })
 
   /** 同步更新 pair 的 stats 并写回 atom + IndexedDB */
@@ -177,7 +163,7 @@ export function useMatchEngine() {
       const mode = prev.difficulty
       if (mode === 'hard') {
         if (deck.length < HARD_TOTAL) {
-          return { ...prev, session: null }
+          return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [] }
         }
         const pick = pickRoundHard(deck, [])
         return {
@@ -188,10 +174,12 @@ export function useMatchEngine() {
           justMatchedId: null,
           justWrongIds: null,
           roundKey: 1,
+          markedIrrelevantIds: [],
+          recentRounds: [],
         }
       }
       if (deck.length < ROUND_SIZE) {
-        return { ...prev, session: null }
+        return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [] }
       }
       const picks = pickRound(deck, [])
       return {
@@ -202,6 +190,8 @@ export function useMatchEngine() {
         justMatchedId: null,
         justWrongIds: null,
         roundKey: 1,
+        markedIrrelevantIds: [],
+        recentRounds: [],
       }
     })
   }, [deck])
@@ -209,26 +199,35 @@ export function useMatchEngine() {
   const nextRound = useCallback(() => {
     setState((prev) => {
       if (!prev.session) return prev
-      const lastIds = prev.session.pairs.map((p) => p.id)
+      // 更新最近 3 回合的 pair id 记录
+      const currentPairIds = prev.session.pairs.map((p) => p.id)
+      const newRecent = [...prev.recentRounds, currentPairIds].slice(-3)
+      const recentFlat = newRecent.flat()
+      const lastIds = currentPairIds
+
       if (prev.difficulty === 'hard') {
-        const pick = pickRoundHard(deck, lastIds)
-        if (!pick) return { ...prev, session: null }
+        const pick = pickRoundHard(deck, recentFlat)
+        if (!pick) return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [] }
         return {
           ...prev,
           session: buildHardSession(pick, lastIds),
           justMatchedId: null,
           justWrongIds: null,
           roundKey: prev.roundKey + 1,
+          markedIrrelevantIds: [],
+          recentRounds: newRecent,
         }
       }
-      const picks = pickRound(deck, lastIds)
-      if (!picks) return { ...prev, session: null }
+      const picks = pickRound(deck, recentFlat)
+      if (!picks) return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [] }
       return {
         ...prev,
         session: buildSession(picks, lastIds),
         justMatchedId: null,
         justWrongIds: null,
         roundKey: prev.roundKey + 1,
+        markedIrrelevantIds: [],
+        recentRounds: newRecent,
       }
     })
   }, [deck])
@@ -247,6 +246,8 @@ export function useMatchEngine() {
             justMatchedId: null,
             justWrongIds: null,
             roundKey: 0,
+            markedIrrelevantIds: [],
+            recentRounds: [],
           },
     )
   }, [])
@@ -260,6 +261,8 @@ export function useMatchEngine() {
         if (prev.justMatchedId || prev.justWrongIds) return prev
         // 已匹配过的不能再选
         if (prev.session.matchedIds.includes(pairId)) return prev
+        // 已标记为无关的不再可选（保险，正常已被 MatchCard 拦截）
+        if (prev.markedIrrelevantIds.includes(`${pairId}:${side}`)) return prev
 
         const selectedLeft = side === 'left' ? pairId : prev.session.selectedLeft
         const selectedRight = side === 'right' ? pairId : prev.session.selectedRight
@@ -350,6 +353,41 @@ export function useMatchEngine() {
   const selectLeft = useCallback((id: string) => select('left', id), [select])
   const selectRight = useCallback((id: string) => select('right', id), [select])
 
+  /** 长按标记/取消标记为无关选项（按 side 粒度，仅当前回合有效） */
+  const toggleIrrelevant = useCallback((pairId: string, side: 'left' | 'right') => {
+    const key = `${pairId}:${side}`
+    setState((prev) => {
+      if (!prev.session) return prev
+      // 动画期间锁定操作
+      if (prev.justMatchedId || prev.justWrongIds) return prev
+      // 已匹配过的不能标记
+      if (prev.session.matchedIds.includes(pairId)) return prev
+      const exists = prev.markedIrrelevantIds.includes(key)
+      const next = exists
+        ? prev.markedIrrelevantIds.filter((id) => id !== key)
+        : [...prev.markedIrrelevantIds, key]
+      // 标记时清除该项当前侧的 selected 状态（避免遗留选中）
+      const isLeft = side === 'left'
+      const clearSelectedLeft =
+        !exists && isLeft && prev.session.selectedLeft === pairId
+          ? null
+          : prev.session.selectedLeft
+      const clearSelectedRight =
+        !exists && !isLeft && prev.session.selectedRight === pairId
+          ? null
+          : prev.session.selectedRight
+      return {
+        ...prev,
+        markedIrrelevantIds: next,
+        session: {
+          ...prev.session,
+          selectedLeft: clearSelectedLeft,
+          selectedRight: clearSelectedRight,
+        },
+      }
+    })
+  }, [])
+
   const canPlayNormal = deck.length >= ROUND_SIZE
   const canPlayHard = deck.length >= HARD_TOTAL
   const canPlay = state.difficulty === 'hard' ? canPlayHard : canPlayNormal
@@ -366,10 +404,12 @@ export function useMatchEngine() {
     justMatchedId: state.justMatchedId,
     justWrongIds: state.justWrongIds,
     roundKey: state.roundKey,
+    markedIrrelevantIds: state.markedIrrelevantIds,
     start,
     nextRound,
     setDifficulty,
     selectLeft,
     selectRight,
+    toggleIrrelevant,
   }
 }

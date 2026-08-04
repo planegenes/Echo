@@ -131,6 +131,42 @@ export function readSnapshotFile(file: File): Promise<ParseResult> {
     }))
 }
 
+/** 检查 Clipboard API 是否可用（需要安全上下文） */
+export function isClipboardApiAvailable(): boolean {
+  return typeof navigator !== 'undefined' && !!navigator.clipboard
+}
+
+/** 将快照 JSON 写入剪贴板，非安全上下文下降级为 execCommand */
+export async function copySnapshotToClipboard(topics: Topic[]): Promise<void> {
+  const snapshot = buildSnapshot(topics)
+  const text = JSON.stringify(snapshot, null, 2)
+
+  if (isClipboardApiAvailable()) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  // 非安全上下文下降级：使用 execCommand('copy')
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!ok) throw new Error('复制命令执行失败')
+}
+
+/** 从剪贴板读取并解析快照，返回 ParseResult */
+export async function readSnapshotFromClipboard(): Promise<ParseResult> {
+  if (!isClipboardApiAvailable()) {
+    return { ok: false, error: '当前环境不支持剪贴板读取' }
+  }
+  const text = await navigator.clipboard.readText()
+  return parseSnapshot(JSON.parse(text))
+}
+
 /** 为导入的 pair/text/topic 补充缺失的 id */
 export function ensureIds(snapshot: Snapshot): Snapshot {
   return {

@@ -7,13 +7,24 @@ import {
   RotateCcw,
   AlertCircle,
   CheckCircle2,
+  ClipboardCopy,
+  ClipboardPaste,
 } from 'lucide-react'
 import {
   buildSnapshot,
+  copySnapshotToClipboard,
   downloadSnapshot,
   ensureIds,
+  isClipboardApiAvailable,
   parseSnapshot,
+  readSnapshotFromClipboard,
 } from '@/lib/importExport'
+import {
+  Dialog,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 export interface ImportExportPanelProps {
   topics: Topic[]
@@ -39,11 +50,68 @@ export function ImportExportPanel({
 }: ImportExportPanelProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<Notice>(null)
+  const [pasteDialogOpen, setPasteDialogOpen] = useState(false)
+  const [pasteText, setPasteText] = useState('')
 
   const handleExport = () => {
     const snapshot = buildSnapshot(topics)
     downloadSnapshot(snapshot)
     setNotice({ kind: 'success', message: '已导出 JSON 文件' })
+  }
+
+  const handleCopyToClipboard = async () => {
+    try {
+      await copySnapshotToClipboard(topics)
+      setNotice({ kind: 'success', message: '已复制到剪贴板' })
+    } catch (err) {
+      setNotice({
+        kind: 'error',
+        message: `复制失败：${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }
+
+  const handleImportFromClipboard = async () => {
+    if (!isClipboardApiAvailable()) {
+      setPasteText('')
+      setPasteDialogOpen(true)
+      return
+    }
+    await doImportFromClipboard()
+  }
+
+  const doImportFromClipboard = async (text?: string) => {
+    try {
+      const result = text
+        ? parseSnapshot(JSON.parse(text))
+        : await readSnapshotFromClipboard()
+      if (!result.ok || !result.data) {
+        setNotice({ kind: 'error', message: `导入失败：${result.error ?? '剪贴板内容不是有效的快照'}` })
+        return
+      }
+      const normalized = ensureIds(result.data)
+      await onImport(normalized.topics)
+      const totalPairs = normalized.topics.reduce((s, t) => s + t.pairs.length, 0)
+      const totalTexts = normalized.topics.reduce((s, t) => s + t.texts.length, 0)
+      setNotice({
+        kind: 'success',
+        message: `已导入 ${normalized.topics.length} 个专题（${totalPairs} 组配对、${totalTexts} 段文本）`,
+      })
+    } catch (err) {
+      setNotice({
+        kind: 'error',
+        message: `导入失败：${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }
+
+  const handlePasteConfirm = () => {
+    if (!pasteText.trim()) {
+      setNotice({ kind: 'error', message: '请粘贴 JSON 内容' })
+      return
+    }
+    setPasteDialogOpen(false)
+    void doImportFromClipboard(pasteText)
   }
 
   const handleImportFile = async (file: File) => {
@@ -86,6 +154,14 @@ export function ImportExportPanel({
           <Upload className="h-4 w-4" />
           导入 JSON
         </Button>
+        <Button variant="outline" size="sm" onClick={handleCopyToClipboard}>
+          <ClipboardCopy className="h-4 w-4" />
+          复制到剪贴板
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleImportFromClipboard}>
+          <ClipboardPaste className="h-4 w-4" />
+          从剪贴板导入
+        </Button>
         <input
           ref={fileRef}
           type="file"
@@ -123,6 +199,25 @@ export function ImportExportPanel({
           <span>{notice.message}</span>
         </div>
       )}
+
+      <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
+        <DialogHeader>
+          <DialogTitle>手动粘贴</DialogTitle>
+        </DialogHeader>
+        <p className="mb-3 text-sm text-muted-foreground">
+          当前环境不支持直接读取剪贴板，请将 JSON 内容粘贴到下方文本框中。
+        </p>
+        <textarea
+          className="w-full min-h-[200px] rounded-md border bg-background px-3 py-2 text-sm font-mono resize-y"
+          placeholder="在此粘贴 JSON 内容..."
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+        />
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => setPasteDialogOpen(false)}>取消</Button>
+          <Button size="sm" onClick={handlePasteConfirm}>确认导入</Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   )
 }

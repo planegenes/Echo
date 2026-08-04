@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Eye, EyeOff, Volume2, Moon, Server, Save, RotateCcw } from 'lucide-react'
+import { fetchAvailableModels } from '@/lib/ai'
+import { Eye, EyeOff, Volume2, Moon, Server, Save, RotateCcw, RefreshCw, Loader2 } from 'lucide-react'
 
 export interface SettingsFormProps {
   settings: AppSettings
@@ -24,6 +25,23 @@ export function SettingsForm({
   const [form, setForm] = useState<AppSettings>(settings)
   const [showKey, setShowKey] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [models, setModels] = useState<string[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [modelsError, setModelsError] = useState<string | null>(null)
+
+  const handleFetchModels = async () => {
+    setModelsLoading(true)
+    setModelsError(null)
+    try {
+      const list = await fetchAvailableModels(form)
+      setModels(list)
+      if (list.length === 0) setModelsError('未获取到模型列表')
+    } catch (e) {
+      setModelsError(e instanceof Error ? e.message : '获取失败')
+    } finally {
+      setModelsLoading(false)
+    }
+  }
 
   const patch = (p: Partial<AppSettings>) =>
     setForm((cur) => ({ ...cur, ...p }))
@@ -89,6 +107,45 @@ export function SettingsForm({
               onChange={(e) => patch({ aiEndpoint: e.target.value })}
               placeholder="https://api.openai.com/v1"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">模型名</Label>
+            <div className="flex items-center gap-1">
+              <Input
+                value={form.aiModel}
+                onChange={(e) => patch({ aiModel: e.target.value })}
+                placeholder="gpt-4o-mini、deepseek-v4-flash 等"
+                list="ai-model-list"
+                autoComplete="off"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => void handleFetchModels()}
+                disabled={modelsLoading || !form.aiEndpoint || !form.aiApiKey}
+                title="从接口获取可用模型"
+              >
+                {modelsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <datalist id="ai-model-list">
+              {models.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+            {modelsError && (
+              <p className="text-xs text-destructive">{modelsError}</p>
+            )}
+            {models.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                已获取 {models.length} 个可用模型，点击输入框下拉选择。
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">API Key</Label>

@@ -12,11 +12,13 @@ export interface DialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   children: React.ReactNode
+  /** 覆盖内容容器的类名（默认 max-w-lg） */
+  contentClassName?: string
 }
 
 const DialogContext = React.createContext<{ close: () => void } | null>(null)
 
-const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => {
+const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children, contentClassName }) => {
   React.useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -41,7 +43,12 @@ const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => {
           className="absolute inset-0 bg-black/60 animate-in fade-in-0"
           onClick={() => onOpenChange(false)}
         />
-        <div className="relative z-10 w-full max-w-lg rounded-xl border bg-popover p-6 text-popover-foreground shadow-lg">
+        <div
+          className={cn(
+            'relative z-10 w-full max-w-lg rounded-xl border bg-popover p-6 text-popover-foreground shadow-lg',
+            contentClassName,
+          )}
+        >
           {children}
         </div>
       </div>
