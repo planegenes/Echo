@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import type { PairItem } from '@/types'
 import { activeDeckAtom, persistPair, type MatchSession } from '@/store/atoms'
-import { clamp, sampleN, shuffle } from '@/lib/utils'
+import { clamp, shuffle } from '@/lib/utils'
 
 /**
  * 模式一：左右配对（spec 5.1，重做版）
