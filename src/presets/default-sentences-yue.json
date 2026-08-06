@@ -1,0 +1,62 @@
+[
+  {
+    "id": "sentence_yue_1",
+    "answer": "你好嗎",
+    "hint": "How are you",
+    "words": ["你", "好", "嗎"]
+  },
+  {
+    "id": "sentence_yue_2",
+    "answer": "我鍾意食蘋果",
+    "hint": "I like eating apples",
+    "words": ["我", "鍾意", "食", "蘋果"]
+  },
+  {
+    "id": "sentence_yue_3",
+    "answer": "今晚食咩呀",
+    "hint": "What are we eating tonight",
+    "words": ["今晚", "食", "咩", "呀"]
+  },
+  {
+    "id": "sentence_yue_4",
+    "answer": "你去邊度呀",
+    "hint": "Where are you going",
+    "words": ["你", "去", "邊度", "呀"]
+  },
+  {
+    "id": "sentence_yue_5",
+    "answer": "佢係我老師",
+    "hint": "He is my teacher",
+    "words": ["佢", "係", "我", "老師"]
+  },
+  {
+    "id": "sentence_yue_6",
+    "answer": "幾多錢呀",
+    "hint": "How much is it",
+    "words": ["幾多", "錢", "呀"]
+  },
+  {
+    "id": "sentence_yue_7",
+    "answer": "唔該晒你",
+    "hint": "Thanks a lot",
+    "words": ["唔該", "晒", "你"]
+  },
+  {
+    "id": "sentence_yue_8",
+    "answer": "我哋一齊去",
+    "hint": "Let's go together",
+    "words": ["我哋", "一齊", "去"]
+  },
+  {
+    "id": "sentence_yue_9",
+    "answer": "聽日會落雨",
+    "hint": "It will rain tomorrow",
+    "words": ["聽日", "會", "落雨"]
+  },
+  {
+    "id": "sentence_yue_10",
+    "answer": "呢本書好好睇",
+    "hint": "This book is very good",
+    "words": ["呢", "本", "書", "好好睇"]
+  }
+]

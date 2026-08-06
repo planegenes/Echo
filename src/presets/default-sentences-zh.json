@@ -1,0 +1,62 @@
+[
+  {
+    "id": "sentence_zh_1",
+    "answer": "今天天气真好",
+    "hint": "The weather is really nice today",
+    "words": ["今天", "天气", "真好"]
+  },
+  {
+    "id": "sentence_zh_2",
+    "answer": "我喜欢吃苹果",
+    "hint": "I like eating apples",
+    "words": ["我", "喜欢", "吃", "苹果"]
+  },
+  {
+    "id": "sentence_zh_3",
+    "answer": "明天会下雨",
+    "hint": "It will rain tomorrow",
+    "words": ["明天", "会", "下雨"]
+  },
+  {
+    "id": "sentence_zh_4",
+    "answer": "他在图书馆看书",
+    "hint": "He is reading in the library",
+    "words": ["他", "在", "图书馆", "看书"]
+  },
+  {
+    "id": "sentence_zh_5",
+    "answer": "我们一起去公园",
+    "hint": "Let's go to the park together",
+    "words": ["我们", "一起", "去", "公园"]
+  },
+  {
+    "id": "sentence_zh_6",
+    "answer": "这本书很有意思",
+    "hint": "This book is very interesting",
+    "words": ["这", "本", "书", "很", "有意思"]
+  },
+  {
+    "id": "sentence_zh_7",
+    "answer": "请问地铁站在哪里",
+    "hint": "Excuse me, where is the subway station",
+    "words": ["请问", "地铁站", "在", "哪里"]
+  },
+  {
+    "id": "sentence_zh_8",
+    "answer": "她是一名老师",
+    "hint": "She is a teacher",
+    "words": ["她", "是", "一名", "老师"]
+  },
+  {
+    "id": "sentence_zh_9",
+    "answer": "我想喝一杯咖啡",
+    "hint": "I want a cup of coffee",
+    "words": ["我", "想", "喝", "一杯", "咖啡"]
+  },
+  {
+    "id": "sentence_zh_10",
+    "answer": "电影七点开始",
+    "hint": "The movie starts at seven",
+    "words": ["电影", "七点", "开始"]
+  }
+]

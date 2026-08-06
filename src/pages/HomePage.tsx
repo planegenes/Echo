@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Layers, ListChecks, FileText, PenLine, BookOpen, Settings } from 'lucide-react'
+import { Layers, ListChecks, FileText, PenLine, BookOpen, Settings, Puzzle } from 'lucide-react'
 
 interface EntryCardProps {
   to: string
@@ -57,6 +57,12 @@ export default function HomePage() {
           title="填空测验"
           desc="随机抽一段文本做选词/输入填空"
           icon={FileText}
+        />
+        <EntryCard
+          to="/sentences"
+          title="组句 / 翻译"
+          desc="拖动单词组句，或输入答案做翻译"
+          icon={Puzzle}
         />
         <EntryCard
           to="/manage"

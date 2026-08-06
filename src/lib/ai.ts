@@ -1,14 +1,20 @@
 import type {
+  AiApiFormat,
   AiJudgeBlankResult,
   AiJudgeRequest,
   AiJudgeResponse,
+  AiProvider,
   AppSettings,
+  ModelConfig,
 } from '@/types'
+import { buildThinkingParams, getModelConfig } from './ai-providers'
 
 /**
  * AI 评判客户端
- * 详见 spec 5.5：填空模式调用 AI 接口进行语义判断
- * 接口配置保存在 settings，不上传服务器
+ * - 支持多供应商配置（settings.aiProviders）
+ * - 默认采用 OpenAI 兼容 /chat/completions 接口
+ * - 同时支持 OpenAI Responses API (/responses)
+ * - 接口配置保存在 settings，不上传服务器
  */
 
 export class AiConfigError extends Error {
@@ -25,13 +31,94 @@ export class AiResponseError extends Error {
   }
 }
 
-/** 检查 AI 接口是否已配置可用 */
-export function isAiConfigured(settings: Pick<AppSettings, 'aiEndpoint' | 'aiApiKey'>): boolean {
-  return settings.aiEndpoint.trim().length > 0 && settings.aiApiKey.trim().length > 0
+/** AI 调用可选项 */
+export interface AiCallOptions {
+  /** 题目级模型覆盖；为空时使用 settings.defaultAiModel */
+  modelOverride?: string
+  /** 显式指定使用的供应商 id；为空时自动查找包含该模型的供应商 */
+  providerId?: string | null
+}
+
+/** 检查 AI 接口已配置可用（默认供应商存在且 baseUrl/Key 已填） */
+export function isAiConfigured(settings: AppSettings): boolean {
+  const provider = getDefaultProvider(settings)
+  if (!provider) return false
+  return provider.baseUrl.trim().length > 0 && provider.apiKey.trim().length > 0
+}
+
+/** 获取默认供应商 */
+export function getDefaultProvider(settings: AppSettings): AiProvider | null {
+  if (!settings.aiProviders || settings.aiProviders.length === 0) return null
+  if (settings.defaultAiProviderId) {
+    const found = settings.aiProviders.find((p) => p.id === settings.defaultAiProviderId)
+    if (found) return found
+  }
+  return settings.aiProviders[0] ?? null
+}
+
+/** 按 id 获取供应商 */
+export function getProviderById(
+  settings: AppSettings,
+  providerId: string | null | undefined,
+): AiProvider | null {
+  if (!providerId) return getDefaultProvider(settings)
+  return settings.aiProviders.find((p) => p.id === providerId) ?? null
+}
+
+/**
+ * 查找包含指定模型的供应商
+ * - 优先匹配 defaultProvider
+ * - 其次按 aiProviders 顺序查找 models 列表
+ * - 找不到则返回 defaultProvider
+ */
+export function findProviderForModel(
+  settings: AppSettings,
+  modelId: string,
+): AiProvider | null {
+  if (!settings.aiProviders || settings.aiProviders.length === 0) return null
+  // 1. 默认供应商优先
+  const defaultP = getDefaultProvider(settings)
+  if (defaultP && (defaultP.models ?? []).includes(modelId)) return defaultP
+  // 2. 任意供应商 models 包含
+  for (const p of settings.aiProviders) {
+    if ((p.models ?? []).includes(modelId)) return p
+  }
+  // 3. 兜底：默认供应商
+  return defaultP
+}
+
+/** 解析此次调用要使用的供应商、模型与配置 */
+export function resolveAiCall(
+  settings: AppSettings,
+  opts?: AiCallOptions,
+): { provider: AiProvider; model: string; config: ModelConfig } {
+  const model =
+    (opts?.modelOverride && opts.modelOverride.trim()) ||
+    settings.defaultAiModel ||
+    'gpt-4o-mini'
+  // 1. 显式指定 providerId
+  let provider: AiProvider | null = null
+  if (opts?.providerId) {
+    provider = getProviderById(settings, opts.providerId)
+  }
+  // 2. 自动查找包含该模型的供应商
+  if (!provider) {
+    provider = findProviderForModel(settings, model)
+  }
+  if (!provider) {
+    throw new AiConfigError('AI 供应商未配置，请先到设置页添加供应商')
+  }
+  if (provider.baseUrl.trim().length === 0 || provider.apiKey.trim().length === 0) {
+    throw new AiConfigError(
+      `供应商「${provider.name}」缺少 baseUrl 或 apiKey，请到设置页补全`,
+    )
+  }
+  const config = getModelConfig(provider, model)
+  return { provider, model, config }
 }
 
 /** 构造 OpenAI 兼容风格的 messages payload */
-function buildPayload(req: AiJudgeRequest, model: string): unknown {
+function buildOpenAiJudgePayload(req: AiJudgeRequest, model: string): unknown {
   const blanksBlock = req.blanks
     .map(
       (b, i) =>
@@ -51,7 +138,7 @@ function buildPayload(req: AiJudgeRequest, model: string): unknown {
       .join(', ')}`
 
   return {
-    model: model || 'gpt-4o-mini',
+    model,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -61,8 +148,37 @@ function buildPayload(req: AiJudgeRequest, model: string): unknown {
   }
 }
 
+/** 构造 OpenAI Responses API payload（input 数组形式） */
+function buildResponsesJudgePayload(req: AiJudgeRequest, model: string): unknown {
+  const blanksBlock = req.blanks
+    .map(
+      (b, i) =>
+        `#${i + 1} 用户答案: "${b.userAnswer}"  标准答案: "${b.standardAnswer}"`,
+    )
+    .join('\n')
+
+  const system =
+    '你是一个学习助手，负责判断填空题答案是否与标准答案语义一致。' +
+    '允许同义词、大小写差异、轻微的标点差异视为正确。' +
+    '只返回 JSON，结构为 {"results":[{"blankId":string,"correct":boolean,"standardAnswer":string,"reason":string}]}。'
+
+  const user =
+    `原文：\n${req.text}\n\n需要判断的空白：\n${blanksBlock}\n\n` +
+    `请严格按 JSON 结构返回，blankId 必须与下列 id 一一对应：${req.blanks
+      .map((b) => b.id)
+      .join(', ')}`
+
+  return {
+    model,
+    instructions: system,
+    input: user,
+    temperature: 0,
+    text: { format: { type: 'json_object' } },
+  }
+}
+
 /** 从 OpenAI 兼容响应里抽取 content 文本 */
-function extractContent(data: unknown): string {
+function extractOpenAiContent(data: unknown): string {
   if (!data || typeof data !== 'object') {
     throw new AiResponseError('AI 响应为空')
   }
@@ -75,6 +191,39 @@ function extractContent(data: unknown): string {
     throw new AiResponseError('AI 响应缺少 content')
   }
   return content
+}
+
+/** 从 OpenAI Responses API 响应里抽取 content 文本 */
+function extractResponsesContent(data: unknown): string {
+  if (!data || typeof data !== 'object') {
+    throw new AiResponseError('AI 响应为空')
+  }
+  const obj = data as {
+    output_text?: string
+    output?: Array<{
+      type?: string
+      content?: Array<{ type?: string; text?: string }>
+    }>
+  }
+  // 优先使用 output_text（OpenAI SDK 便捷字段）
+  if (typeof obj.output_text === 'string' && obj.output_text.length > 0) {
+    return obj.output_text
+  }
+  const output = obj.output
+  if (!Array.isArray(output)) {
+    throw new AiResponseError('Responses API 响应缺少 output')
+  }
+  // 寻找 message 类型项中的 output_text
+  for (const item of output) {
+    if (item.type === 'message' && Array.isArray(item.content)) {
+      for (const c of item.content) {
+        if (c.type === 'output_text' && typeof c.text === 'string') {
+          return c.text
+        }
+      }
+    }
+  }
+  throw new AiResponseError('Responses API 响应缺少 output_text')
 }
 
 /** 尝试从 AI 返回的字符串里解析出 results 数组 */
@@ -113,23 +262,20 @@ function parseResults(raw: string, expectedIds: string[]): AiJudgeBlankResult[] 
 export async function judgeBlanks(
   settings: AppSettings,
   req: AiJudgeRequest,
+  opts?: AiCallOptions,
 ): Promise<AiJudgeResponse> {
-  if (!isAiConfigured(settings)) {
-    throw new AiConfigError('AI 接口未配置，请先到设置页填写 endpoint 与 api key')
-  }
-
-  const endpoint = settings.aiEndpoint.replace(/\/$/, '')
-  const url = endpoint.endsWith('/chat/completions')
-    ? endpoint
-    : `${endpoint}/chat/completions`
+  const { provider, model, config } = resolveAiCall(settings, opts)
+  const url = buildChatUrl(provider)
+  const basePayload =
+    provider.apiFormat === 'responses'
+      ? buildResponsesJudgePayload(req, model)
+      : buildOpenAiJudgePayload(req, model)
+  const payload = applyModelConfig(provider, model, basePayload, config)
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${settings.aiApiKey}`,
-    },
-    body: JSON.stringify(buildPayload(req, settings.aiModel)),
+    headers: buildHeaders(provider),
+    body: JSON.stringify(payload),
   })
 
   if (!res.ok) {
@@ -138,7 +284,10 @@ export async function judgeBlanks(
   }
 
   const data = await res.json()
-  const content = extractContent(data)
+  const content =
+    provider.apiFormat === 'responses'
+      ? extractResponsesContent(data)
+      : extractOpenAiContent(data)
   const results = parseResults(content, req.blanks.map((b) => b.id))
 
   // 补齐缺失的 blankId（按用户答案是否与标准答案一致兜底）
@@ -158,23 +307,58 @@ export async function judgeBlanks(
 }
 
 /**
+ * 将 ModelConfig（思考等级 + 自定义参数）合并到 payload
+ * - 思考等级：通过 buildThinkingParams 转换为对应字段
+ * - 自定义参数：浅合并到 payload 顶层（覆盖现有同名字段）
+ */
+export function applyModelConfig(
+  provider: AiProvider,
+  model: string,
+  basePayload: unknown,
+  config: ModelConfig,
+): Record<string, unknown> {
+  const base = (basePayload ?? {}) as Record<string, unknown>
+  const thinking = buildThinkingParams(provider, model, config.thinkingLevel)
+  const custom = config.customParams ?? {}
+  return { ...base, ...thinking, ...custom }
+}
+
+/** 构造聊天/响应接口 URL */
+export function buildChatUrl(provider: AiProvider): string {
+  const base = provider.baseUrl.replace(/\/$/, '')
+  if (provider.apiFormat === 'responses') {
+    return base.endsWith('/responses') ? base : `${base}/responses`
+  }
+  return base.endsWith('/chat/completions') ? base : `${base}/chat/completions`
+}
+
+/** 构造请求头（含鉴权） */
+export function buildHeaders(provider: AiProvider): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${provider.apiKey}`,
+  }
+}
+
+/**
  * 获取可用模型列表（OpenAI 兼容 /models 接口）
+ * @param provider 供应商配置
  * @returns 模型 id 字符串数组
  */
-export async function fetchAvailableModels(settings: AppSettings): Promise<string[]> {
-  if (!isAiConfigured(settings)) {
-    throw new AiConfigError('AI 接口未配置，请先到设置页填写 endpoint 与 api key')
+export async function fetchAvailableModels(provider: AiProvider): Promise<string[]> {
+  if (provider.baseUrl.trim().length === 0 || provider.apiKey.trim().length === 0) {
+    throw new AiConfigError(
+      `供应商「${provider.name}」缺少 baseUrl 或 apiKey`,
+    )
   }
 
-  const endpoint = settings.aiEndpoint.replace(/\/$/, '')
-  const url = endpoint.endsWith('/models')
-    ? endpoint
-    : `${endpoint}/models`
+  const base = provider.baseUrl.replace(/\/$/, '')
+  const url = base.endsWith('/models') ? base : `${base}/models`
 
   const res = await fetch(url, {
     method: 'GET',
     headers: {
-      Authorization: `Bearer ${settings.aiApiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
     },
   })
 
@@ -191,3 +375,68 @@ export async function fetchAvailableModels(settings: AppSettings): Promise<strin
     .filter((id): id is string => typeof id === 'string' && id.length > 0)
 }
 
+/** 兼容旧调用签名：从 settings 中取默认供应商再获取模型列表 */
+export async function fetchAvailableModelsFromSettings(
+  settings: AppSettings,
+): Promise<string[]> {
+  const provider = getDefaultProvider(settings)
+  if (!provider) {
+    throw new AiConfigError('AI 供应商未配置，请先到设置页添加供应商')
+  }
+  return fetchAvailableModels(provider)
+}
+
+/**
+ * 拉取某供应商的模型列表并返回更新了 models 字段的新供应商对象
+ * 失败时返回原供应商对象（不修改）
+ */
+export async function refreshProviderModels(
+  provider: AiProvider,
+): Promise<{ provider: AiProvider; error: string | null }> {
+  try {
+    if (provider.baseUrl.trim().length === 0 || provider.apiKey.trim().length === 0) {
+      return { provider, error: '缺少 baseUrl 或 apiKey' }
+    }
+    const models = await fetchAvailableModels(provider)
+    return { provider: { ...provider, models }, error: null }
+  } catch (e) {
+    return {
+      provider,
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
+}
+
+/**
+ * 从多个供应商并行获取模型列表，按供应商分组返回
+ * 失败的供应商会被记录在 errors 中但不阻塞其它供应商
+ */
+export async function fetchModelsGroupedByProvider(
+  providers: AiProvider[],
+): Promise<{ groups: { provider: AiProvider; models: string[] }[]; errors: { provider: AiProvider; error: string }[] }> {
+  const results = await Promise.all(
+    providers.map(async (p) => {
+      try {
+        if (p.baseUrl.trim().length === 0 || p.apiKey.trim().length === 0) {
+          return { provider: p, models: [] as string[], error: '缺少 baseUrl 或 apiKey' }
+        }
+        const models = await fetchAvailableModels(p)
+        return { provider: p, models, error: null as string | null }
+      } catch (e) {
+        return { provider: p, models: [] as string[], error: e instanceof Error ? e.message : String(e) }
+      }
+    }),
+  )
+  const groups = results
+    .filter((r) => r.models.length > 0)
+    .map((r) => ({ provider: r.provider, models: r.models }))
+  const errors = results
+    .filter((r) => r.error !== null && r.models.length === 0)
+    .map((r) => ({ provider: r.provider, error: r.error! }))
+  return { groups, errors }
+}
+
+/** 兼容：根据 API 格式从响应中抽取 content（供其它模块复用） */
+export function extractContentByFormat(data: unknown, format: AiApiFormat): string {
+  return format === 'responses' ? extractResponsesContent(data) : extractOpenAiContent(data)
+}

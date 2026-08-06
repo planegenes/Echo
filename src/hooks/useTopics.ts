@@ -5,8 +5,10 @@ import {
   topicsAtom,
   activePairsTopicAtom,
   activeTextsTopicAtom,
+  activeSentencesTopicAtom,
   activePairsTopicIdAtom,
   activeTextsTopicIdAtom,
+  activeSentencesTopicIdAtom,
   persistTopic,
   deleteTopic,
 } from '@/store/atoms'
@@ -21,10 +23,13 @@ export function useTopics() {
   const topics = useAtomValue(topicsAtom)
   const activePairsTopic = useAtomValue(activePairsTopicAtom)
   const activeTextsTopic = useAtomValue(activeTextsTopicAtom)
+  const activeSentencesTopic = useAtomValue(activeSentencesTopicAtom)
   const activePairsTopicId = useAtomValue(activePairsTopicIdAtom)
   const activeTextsTopicId = useAtomValue(activeTextsTopicIdAtom)
+  const activeSentencesTopicId = useAtomValue(activeSentencesTopicIdAtom)
   const setActivePairsTopicId = useSetAtom(activePairsTopicIdAtom)
   const setActiveTextsTopicId = useSetAtom(activeTextsTopicIdAtom)
+  const setActiveSentencesTopicId = useSetAtom(activeSentencesTopicIdAtom)
 
   const addTopic = useCallback(
     async (name: string, type: TopicType): Promise<Topic> => {
@@ -32,15 +37,17 @@ export function useTopics() {
         id: uid('topic'),
         name,
         type,
-        pairs: type === 'pairs' ? [] : [],
-        texts: type === 'texts' ? [] : [],
+        pairs: [],
+        texts: [],
+        sentences: [],
       }
       await persistTopic(topic)
       if (type === 'pairs') setActivePairsTopicId(topic.id)
-      else setActiveTextsTopicId(topic.id)
+      else if (type === 'texts') setActiveTextsTopicId(topic.id)
+      else setActiveSentencesTopicId(topic.id)
       return topic
     },
-    [setActivePairsTopicId, setActiveTextsTopicId],
+    [setActivePairsTopicId, setActiveTextsTopicId, setActiveSentencesTopicId],
   )
 
   const renameTopic = useCallback(
@@ -63,10 +70,13 @@ export function useTopics() {
     topics,
     activePairsTopic,
     activeTextsTopic,
+    activeSentencesTopic,
     activePairsTopicId,
     activeTextsTopicId,
+    activeSentencesTopicId,
     setActivePairsTopicId,
     setActiveTextsTopicId,
+    setActiveSentencesTopicId,
     addTopic,
     renameTopic,
     removeTopic,

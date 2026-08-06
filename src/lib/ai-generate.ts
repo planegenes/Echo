@@ -1,12 +1,23 @@
 import type { AppSettings, ContentFormat, PairItem, TextItem } from '@/types'
 import { uid } from './utils'
-import { AiConfigError, AiResponseError, isAiConfigured } from './ai'
+import {
+  AiConfigError,
+  AiResponseError,
+  applyModelConfig,
+  buildChatUrl,
+  buildHeaders,
+  extractContentByFormat,
+  isAiConfigured,
+  resolveAiCall,
+  type AiCallOptions,
+} from './ai'
 
 /**
  * AI 批量生成题目
  * - 使用「预设系统提示词 + 用户需求提示词」形式
  * - 配对题与填空题返回不同的 JSON 结构
  * - 复用 ai.ts 中的接口配置检查与错误类型
+ * - 支持题目级模型覆盖（modelOverride）与显式 providerId
  */
 
 const PAIRS_SYSTEM =
@@ -23,12 +34,12 @@ const TEXTS_SYSTEM =
   '只返回 JSON，结构为 {"texts":[{"content":"文本内容，包含 *空白* 和 **加粗** 标记"}]}。' +
   '生成的题目应当准确、有意义、避免重复，每条文本应至少包含一个 *空白* 标记。'
 
-interface ChatMessage {
+export interface ChatMessage {
   role: 'system' | 'user'
   content: string
 }
 
-interface ChatPayload {
+export interface ChatPayload {
   model: string
   messages: ChatMessage[]
   temperature: number
@@ -47,24 +58,22 @@ function buildPayload(system: string, userPrompt: string, model: string): ChatPa
   }
 }
 
-/** 从 OpenAI 兼容响应里抽取 content 文本 */
-function extractContent(data: unknown): string {
-  if (!data || typeof data !== 'object') {
-    throw new AiResponseError('AI 响应为空')
+/** 构造自定义 ChatPayload（供其它模块复用 callChat） */
+export function buildCustomPayload(
+  messages: ChatMessage[],
+  model: string,
+  temperature = 0,
+): ChatPayload {
+  return {
+    model: model || 'gpt-4o-mini',
+    messages,
+    temperature,
+    response_format: { type: 'json_object' },
   }
-  const choices = (data as { choices?: Array<{ message?: { content?: string } }> }).choices
-  if (!Array.isArray(choices) || choices.length === 0) {
-    throw new AiResponseError('AI 响应缺少 choices')
-  }
-  const content = choices[0]?.message?.content
-  if (typeof content !== 'string') {
-    throw new AiResponseError('AI 响应缺少 content')
-  }
-  return content
 }
 
 /** 尝试从 AI 返回的字符串里解析出 JSON 对象 */
-function parseJsonObject(raw: string): Record<string, unknown> {
+export function parseJsonObject(raw: string): Record<string, unknown> {
   let obj: unknown
   try {
     obj = JSON.parse(raw)
@@ -85,26 +94,34 @@ function normalizeFormat(fmt: unknown): ContentFormat {
   return 'text'
 }
 
-/** 通用 chat completion 调用，返回 content 字符串 */
-async function callChat(settings: AppSettings, payload: ChatPayload): Promise<string> {
-  // 兜底旧数据：若 settings.aiModel 缺失则用默认
-  if (!payload.model) payload = { ...payload, model: 'gpt-4o-mini' }
+/**
+ * 通用 chat completion 调用
+ * - OpenAI 格式：POST /chat/completions，body 含 messages
+ * - Responses 格式：POST /responses，body 含 instructions + input
+ * - 通过 opts.modelOverride 支持题目级模型覆盖
+ * - 自动应用 ModelConfig（思考等级 + 自定义参数）
+ */
+export async function callChat(
+  settings: AppSettings,
+  payload: ChatPayload,
+  opts?: AiCallOptions,
+): Promise<string> {
   if (!isAiConfigured(settings)) {
-    throw new AiConfigError('AI 接口未配置，请先到设置页填写 endpoint 与 api key')
+    throw new AiConfigError('AI 接口未配置，请先到设置页添加供应商')
   }
 
-  const endpoint = settings.aiEndpoint.replace(/\/$/, '')
-  const url = endpoint.endsWith('/chat/completions')
-    ? endpoint
-    : `${endpoint}/chat/completions`
+  const { provider, model, config } = resolveAiCall(settings, opts)
+  const url = buildChatUrl(provider)
+  const baseBody =
+    provider.apiFormat === 'responses'
+      ? toResponsesPayload(payload, model)
+      : { ...payload, model }
+  const body = applyModelConfig(provider, model, baseBody, config)
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${settings.aiApiKey}`,
-    },
-    body: JSON.stringify(payload),
+    headers: buildHeaders(provider),
+    body: JSON.stringify(body),
   })
 
   if (!res.ok) {
@@ -113,19 +130,36 @@ async function callChat(settings: AppSettings, payload: ChatPayload): Promise<st
   }
 
   const data = await res.json()
-  return extractContent(data)
+  return extractContentByFormat(data, provider.apiFormat)
+}
+
+/** 将 OpenAI 风格 ChatPayload 转换为 Responses API 风格 payload */
+function toResponsesPayload(payload: ChatPayload, model: string): unknown {
+  // 取 system 消息作为 instructions，其余作为 input
+  const systemMsg = payload.messages.find((m) => m.role === 'system')
+  const userMsgs = payload.messages.filter((m) => m.role !== 'system')
+  return {
+    model,
+    instructions: systemMsg?.content ?? '',
+    input: userMsgs.map((m) => m.content).join('\n\n') || '',
+    temperature: payload.temperature,
+    text: { format: payload.response_format },
+  }
 }
 
 /**
  * 生成配对题
  * @param settings AI 接口配置
  * @param userPrompt 用户需求描述
+ * @param opts 模型/供应商覆盖
  */
 export async function generatePairs(
   settings: AppSettings,
   userPrompt: string,
+  opts?: AiCallOptions,
 ): Promise<PairItem[]> {
-  const content = await callChat(settings, buildPayload(PAIRS_SYSTEM, userPrompt, settings.aiModel))
+  const { model } = resolveAiCall(settings, opts)
+  const content = await callChat(settings, buildPayload(PAIRS_SYSTEM, userPrompt, model), opts)
   const obj = parseJsonObject(content)
   const pairs = obj.pairs
   if (!Array.isArray(pairs)) {
@@ -153,12 +187,15 @@ export async function generatePairs(
  * 生成填空题
  * @param settings AI 接口配置
  * @param userPrompt 用户需求描述
+ * @param opts 模型/供应商覆盖
  */
 export async function generateTexts(
   settings: AppSettings,
   userPrompt: string,
+  opts?: AiCallOptions,
 ): Promise<TextItem[]> {
-  const content = await callChat(settings, buildPayload(TEXTS_SYSTEM, userPrompt, settings.aiModel))
+  const { model } = resolveAiCall(settings, opts)
+  const content = await callChat(settings, buildPayload(TEXTS_SYSTEM, userPrompt, model), opts)
   const obj = parseJsonObject(content)
   const texts = obj.texts
   if (!Array.isArray(texts)) {

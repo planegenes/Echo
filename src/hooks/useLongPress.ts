@@ -6,6 +6,7 @@ import { useCallback, useRef } from 'react'
  * - pointer up / leave / cancel 时清除计时器
  * - 长按触发后会抑制紧接着的 click 事件（通过 onClickCapture 捕获阶段阻止）
  * - 支持触觉反馈（移动端 vibrate 15ms）
+ * - 阻止移动端长按触发的文本选择行为（清除选区 + 临时禁用 user-select）
  */
 const DEFAULT_THRESHOLD = 500
 
@@ -27,10 +28,26 @@ export function useLongPress(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressClickRef = useRef(false)
   const pointerTypeRef = useRef<string>('')
+  const targetRef = useRef<HTMLElement | null>(null)
+  const prevUserSelectRef = useRef<string>('')
 
   const start = useCallback((e: React.PointerEvent) => {
     pointerTypeRef.current = e.pointerType
     suppressClickRef.current = false
+    // 清除已有文本选区，防止长按扩展选区
+    if (typeof document !== 'undefined') {
+      const sel = document.getSelection()
+      if (sel && sel.rangeCount > 0) sel.removeAllRanges()
+    }
+    // 临时禁用目标元素 user-select，防止长按触发文本选择
+    const el = e.currentTarget as HTMLElement | null
+    if (el) {
+      targetRef.current = el
+      prevUserSelectRef.current = el.style.userSelect
+      el.style.userSelect = 'none'
+      // 兼容 webkit
+      el.style.setProperty('-webkit-user-select', 'none')
+    }
     timerRef.current = setTimeout(() => {
       suppressClickRef.current = true
       onLongPress()
@@ -40,12 +57,22 @@ export function useLongPress(
     }, threshold)
   }, [onLongPress, threshold])
 
+  const restoreUserSelect = useCallback(() => {
+    const el = targetRef.current
+    if (el) {
+      el.style.userSelect = prevUserSelectRef.current
+      el.style.removeProperty('-webkit-user-select')
+      targetRef.current = null
+    }
+  }, [])
+
   const clear = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current)
       timerRef.current = null
     }
-  }, [])
+    restoreUserSelect()
+  }, [restoreUserSelect])
 
   const onClickCapture = useCallback((e: React.MouseEvent) => {
     if (suppressClickRef.current) {
@@ -71,3 +98,4 @@ export function useLongPress(
     onContextMenu,
   }
 }
+

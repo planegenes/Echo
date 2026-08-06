@@ -3,6 +3,8 @@ import type { TextItem } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ModelSelector } from '@/components/ModelSelector'
+import { useSettingsValue } from '@/store/atoms'
 import { parseText } from '@/lib/parser'
 import { uid } from '@/lib/utils'
 
@@ -17,11 +19,14 @@ export interface TextFormProps {
  * - 实时显示空白识别数量与解析预览
  */
 export function TextForm({ initial, onSubmit, onCancel }: TextFormProps) {
+  const settings = useSettingsValue()
   const [content, setContent] = useState(initial?.content ?? '')
+  const [aiModel, setAiModel] = useState<string>(initial?.aiModel ?? '')
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     setContent(initial?.content ?? '')
+    setAiModel(initial?.aiModel ?? '')
   }, [initial])
 
   const parsed = useMemo(() => parseText(content), [content])
@@ -36,6 +41,7 @@ export function TextForm({ initial, onSubmit, onCancel }: TextFormProps) {
       await onSubmit({
         id: initial?.id ?? uid('text'),
         content,
+        aiModel: aiModel || undefined,
       })
     } finally {
       setSubmitting(false)
@@ -56,6 +62,20 @@ export function TextForm({ initial, onSubmit, onCancel }: TextFormProps) {
           识别到 <span className="font-medium">{blankCount}</span> 个空白。
           使用 <code>*内容*</code> 标记空白；<code>**内容**</code> 标记加粗。
         </p>
+      </div>
+
+      {/* AI 模型覆盖（可选） */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">
+          AI 模型覆盖（用于填空 AI 判题）
+        </Label>
+        <ModelSelector
+          value={aiModel}
+          onChange={setAiModel}
+          providers={settings.aiProviders}
+          allowEmpty
+          emptyLabel="使用默认模型"
+        />
       </div>
 
       {content && (

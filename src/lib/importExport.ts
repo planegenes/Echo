@@ -1,10 +1,11 @@
 import { z } from 'zod'
-import type { PairItem, Snapshot, TextItem, Topic } from '@/types'
+import type { PairItem, SentenceItem, Snapshot, TextItem, Topic } from '@/types'
 import { uid } from './utils'
 
 /**
  * 导入/导出与 zod 校验
  * v2: 快照格式为 topics 列表；兼容旧版 pairs/texts 格式
+ * v3: 新增 sentences（组句）类型
  */
 
 const contentSchema = z.object({
@@ -31,12 +32,20 @@ const textSchema = z.object({
   content: z.string().min(1),
 })
 
+const sentenceSchema = z.object({
+  id: z.string().min(1),
+  answer: z.string(),
+  hint: z.string().default(''),
+  words: z.array(z.string()).default([]),
+})
+
 const topicSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  type: z.enum(['pairs', 'texts']),
+  type: z.enum(['pairs', 'texts', 'sentences']),
   pairs: z.array(pairSchema).default([]),
   texts: z.array(textSchema).default([]),
+  sentences: z.array(sentenceSchema).default([]),
 })
 
 // 兼容旧版：topics 或 pairs+texts
@@ -72,6 +81,12 @@ export function parseSnapshot(input: unknown): ParseResult {
         stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
       })),
       texts: t.texts.slice(),
+      sentences: t.sentences.map((s) => ({
+        id: s.id,
+        answer: s.answer,
+        hint: s.hint ?? '',
+        words: s.words.slice(),
+      })),
     }))
   } else {
     // 旧格式：将 pairs + texts 拆分为两个专题（按类型）
@@ -81,8 +96,8 @@ export function parseSnapshot(input: unknown): ParseResult {
     }))
     const texts = (r.texts ?? []).slice()
     topics = [
-      { id: uid('topic'), name: '测试题库（配对）', type: 'pairs', pairs, texts: [] },
-      { id: uid('topic'), name: '测试题库（文本）', type: 'texts', pairs: [], texts },
+      { id: uid('topic'), name: '测试题库（配对）', type: 'pairs', pairs, texts: [], sentences: [] },
+      { id: uid('topic'), name: '测试题库（文本）', type: 'texts', pairs: [], texts, sentences: [] },
     ]
   }
 
@@ -101,6 +116,12 @@ export function buildSnapshot(topics: Topic[]): Snapshot {
         stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
       })),
       texts: t.texts.slice(),
+      sentences: t.sentences.map((s) => ({
+        id: s.id,
+        answer: s.answer,
+        hint: s.hint,
+        words: s.words.slice(),
+      })),
     })),
   }
 }
@@ -167,7 +188,7 @@ export async function readSnapshotFromClipboard(): Promise<ParseResult> {
   return parseSnapshot(JSON.parse(text))
 }
 
-/** 为导入的 pair/text/topic 补充缺失的 id */
+/** 为导入的 pair/text/sentence/topic 补充缺失的 id */
 export function ensureIds(snapshot: Snapshot): Snapshot {
   return {
     topics: snapshot.topics.map((t) => ({
@@ -180,6 +201,9 @@ export function ensureIds(snapshot: Snapshot): Snapshot {
       texts: t.texts.map((t2) =>
         t2.id ? t2 : { ...t2, id: uid('text') },
       ) as TextItem[],
+      sentences: t.sentences.map((s) =>
+        s.id ? s : { ...s, id: uid('sentence') },
+      ) as SentenceItem[],
     })),
   }
 }

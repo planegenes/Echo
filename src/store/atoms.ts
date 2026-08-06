@@ -5,6 +5,7 @@ import type {
   ContentFormat,
   PairItem,
   PairStats,
+  SentenceItem,
   TextItem,
   Topic,
 } from '@/types'
@@ -20,6 +21,10 @@ import {
 } from '@/lib/db'
 import defaultPairs from '@/presets/default-pairs.json'
 import defaultTexts from '@/presets/default-texts.json'
+import defaultSentencesZh from '@/presets/default-sentences-zh.json'
+import defaultSentencesYue from '@/presets/default-sentences-yue.json'
+import defaultSentencesEn from '@/presets/default-sentences-en.json'
+import { migrateLegacySettings, normalizeProvider } from '@/lib/ai-providers'
 import { uid } from '@/lib/utils'
 
 /**
@@ -43,12 +48,22 @@ export const activeTextsTopicIdAtom = atomWithStorage<string | null>(
   null,
 )
 
+/** 当前选中的组句专题 id */
+export const activeSentencesTopicIdAtom = atomWithStorage<string | null>(
+  'echo:activeSentencesTopic',
+  null,
+)
+
 export const settingsAtom = atomWithStorage<AppSettings>('pair-quiz:settings', {
   soundEnabled: true,
   darkMode: false,
+  // 旧字段保留用于迁移检测，新代码不应再读取
   aiEndpoint: '',
   aiApiKey: '',
   aiModel: 'gpt-4o-mini',
+  aiProviders: [],
+  defaultAiProviderId: null,
+  defaultAiModel: 'gpt-4o-mini',
 })
 
 // ===== 派生状态 =====
@@ -69,6 +84,14 @@ export const activeTextsTopicAtom = atom((get) => {
   return found ?? topics.find((t) => t.type === 'texts') ?? null
 })
 
+/** 当前活动的组句专题 */
+export const activeSentencesTopicAtom = atom((get) => {
+  const topics = get(topicsAtom)
+  const id = get(activeSentencesTopicIdAtom)
+  const found = topics.find((t) => t.id === id && t.type === 'sentences')
+  return found ?? topics.find((t) => t.type === 'sentences') ?? null
+})
+
 /** 活动配对专题的题库 */
 export const activeDeckAtom = atom((get) => {
   const topic = get(activePairsTopicAtom)
@@ -81,10 +104,22 @@ export const activeTextsAtom = atom((get) => {
   return topic?.texts ?? []
 })
 
+/** 活动组句专题的题目库 */
+export const activeSentencesAtom = atom((get) => {
+  const topic = get(activeSentencesTopicAtom)
+  return topic?.sentences ?? []
+})
+
 /** 跨所有专题扁平化的文本列表（用于按 id 查找） */
 export const allTextsAtom = atom((get) => {
   const topics = get(topicsAtom)
   return topics.flatMap((t) => t.texts)
+})
+
+/** 跨所有专题扁平化的组句题目列表（用于按 id 查找） */
+export const allSentencesAtom = atom((get) => {
+  const topics = get(topicsAtom)
+  return topics.flatMap((t) => t.sentences)
 })
 
 // ===== 会话状态：模式一（左右配对） =====
@@ -169,6 +204,7 @@ export async function loadPersistedData(): Promise<void> {
           type: 'pairs',
           pairs: old.pairs,
           texts: [],
+          sentences: [],
         })
       }
       if (old.texts.length > 0) {
@@ -178,12 +214,27 @@ export async function loadPersistedData(): Promise<void> {
           type: 'texts',
           pairs: [],
           texts: old.texts,
+          sentences: [],
         })
       }
     }
     await dbClearTopics()
     for (const t of newTopics) await dbPutTopic(t)
     topics = newTopics
+  }
+
+  // 兜底：为缺少 sentences 字段的旧专题补齐空数组
+  let needsPersist = false
+  topics = topics.map((t) => {
+    if (!t.sentences) {
+      needsPersist = true
+      return { ...t, sentences: [] as SentenceItem[] }
+    }
+    return t
+  })
+  if (needsPersist) {
+    await dbClearTopics()
+    for (const t of topics) await dbPutTopic(t)
   }
 
   if (topics.length === 0) {
@@ -198,6 +249,7 @@ export async function loadPersistedData(): Promise<void> {
       type: 'pairs',
       pairs: oldPairs.length > 0 ? oldPairs : (defaultPairs as PairItem[]),
       texts: [],
+      sentences: [],
     }
     const textsTopic: Topic = {
       id: uid('topic'),
@@ -205,16 +257,75 @@ export async function loadPersistedData(): Promise<void> {
       type: 'texts',
       pairs: [],
       texts: oldTexts.length > 0 ? oldTexts : (defaultTexts as TextItem[]),
+      sentences: [],
+    }
+    const sentencesZhTopic: Topic = {
+      id: uid('topic'),
+      name: '普通话组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesZh as SentenceItem[],
+    }
+    const sentencesYueTopic: Topic = {
+      id: uid('topic'),
+      name: '粤语组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesYue as SentenceItem[],
+    }
+    const sentencesEnTopic: Topic = {
+      id: uid('topic'),
+      name: '英语组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesEn as SentenceItem[],
     }
     await dbPutTopic(pairsTopic)
     await dbPutTopic(textsTopic)
-    topics = [pairsTopic, textsTopic]
+    await dbPutTopic(sentencesZhTopic)
+    await dbPutTopic(sentencesYueTopic)
+    await dbPutTopic(sentencesEnTopic)
+    topics = [pairsTopic, textsTopic, sentencesZhTopic, sentencesYueTopic, sentencesEnTopic]
+  } else if (topics.filter((t) => t.type === 'sentences').length === 0) {
+    // 已有专题但缺组句专题 → 补三个默认组句专题（普通话/粤语/英语）
+    const sentencesZhTopic: Topic = {
+      id: uid('topic'),
+      name: '普通话组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesZh as SentenceItem[],
+    }
+    const sentencesYueTopic: Topic = {
+      id: uid('topic'),
+      name: '粤语组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesYue as SentenceItem[],
+    }
+    const sentencesEnTopic: Topic = {
+      id: uid('topic'),
+      name: '英语组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesEn as SentenceItem[],
+    }
+    await dbPutTopic(sentencesZhTopic)
+    await dbPutTopic(sentencesYueTopic)
+    await dbPutTopic(sentencesEnTopic)
+    topics = [...topics, sentencesZhTopic, sentencesYueTopic, sentencesEnTopic]
   }
   storeSet(topicsAtom, topics)
 
   // 确保活动专题 id 指向有效专题
   const pairsTopics = topics.filter((t) => t.type === 'pairs')
   const textsTopics = topics.filter((t) => t.type === 'texts')
+  const sentencesTopics = topics.filter((t) => t.type === 'sentences')
   const storedPairs = internalStore.get(activePairsTopicIdAtom)
   if (!storedPairs || !pairsTopics.find((t) => t.id === storedPairs)) {
     internalStore.set(activePairsTopicIdAtom, pairsTopics[0]?.id ?? null)
@@ -222,6 +333,58 @@ export async function loadPersistedData(): Promise<void> {
   const storedTexts = internalStore.get(activeTextsTopicIdAtom)
   if (!storedTexts || !textsTopics.find((t) => t.id === storedTexts)) {
     internalStore.set(activeTextsTopicIdAtom, textsTopics[0]?.id ?? null)
+  }
+  const storedSentences = internalStore.get(activeSentencesTopicIdAtom)
+  if (!storedSentences || !sentencesTopics.find((t) => t.id === storedSentences)) {
+    internalStore.set(activeSentencesTopicIdAtom, sentencesTopics[0]?.id ?? null)
+  }
+
+  // 迁移旧 AI 设置：单一 aiEndpoint/aiApiKey → 供应商列表
+  await migrateLegacyAiSettingsIfNeeded()
+}
+
+/**
+ * 若 settings 仍是旧的单供应商结构，则迁移到 aiProviders + defaultAiProviderId
+ * - 同时检查 IndexedDB 与 localStorage（settingsAtom）两处
+ */
+async function migrateLegacyAiSettingsIfNeeded(): Promise<void> {
+  // 1. 检查 IndexedDB 中的 settings
+  const dbSettings = await loadSettingsFromDB()
+  if (dbSettings) {
+    const needsMigrate =
+      !dbSettings.aiProviders ||
+      dbSettings.aiProviders.length === 0 ||
+      !dbSettings.defaultAiModel ||
+      dbSettings.aiProviders.some(
+        (p) => !p.models || !p.modelConfigs,
+      )
+    if (needsMigrate) {
+      const migrated = migrateLegacySettings(dbSettings)
+      const next: AppSettings = {
+        ...dbSettings,
+        aiProviders: migrated.aiProviders.map(normalizeProvider),
+        defaultAiProviderId: migrated.defaultAiProviderId,
+        defaultAiModel: migrated.defaultAiModel,
+      }
+      await persistSettings(next)
+    }
+  }
+
+  // 2. 检查 localStorage 中的 settingsAtom（同步迁移）
+  const local = internalStore.get(settingsAtom)
+  const needsLocalMigrate =
+    !local.aiProviders ||
+    local.aiProviders.length === 0 ||
+    !local.defaultAiModel ||
+    local.aiProviders.some((p) => !p.models || !p.modelConfigs)
+  if (needsLocalMigrate) {
+    const migrated = migrateLegacySettings(local)
+    internalStore.set(settingsAtom, {
+      ...local,
+      aiProviders: migrated.aiProviders.map(normalizeProvider),
+      defaultAiProviderId: migrated.defaultAiProviderId,
+      defaultAiModel: migrated.defaultAiModel,
+    })
   }
 }
 
@@ -267,6 +430,10 @@ export async function deleteTopic(id: string): Promise<void> {
     const fallback = next.find((t) => t.type === 'texts')
     internalStore.set(activeTextsTopicIdAtom, fallback?.id ?? null)
   }
+  if (topic.type === 'sentences' && internalStore.get(activeSentencesTopicIdAtom) === id) {
+    const fallback = next.find((t) => t.type === 'sentences')
+    internalStore.set(activeSentencesTopicIdAtom, fallback?.id ?? null)
+  }
 }
 
 /** 清空所有专题 */
@@ -278,12 +445,19 @@ export async function resetAllTopics(): Promise<void> {
 /** 批量替换所有专题（用于导入） */
 export async function replaceAllTopics(newTopics: Topic[]): Promise<void> {
   await dbClearTopics()
-  for (const t of newTopics) await dbPutTopic(t)
-  storeSet(topicsAtom, newTopics)
-  const firstPairs = newTopics.find((t) => t.type === 'pairs')
-  const firstTexts = newTopics.find((t) => t.type === 'texts')
+  // 兜底：导入数据可能缺少 sentences 字段
+  const normalized = newTopics.map((t) => ({
+    ...t,
+    sentences: t.sentences ?? [],
+  }))
+  for (const t of normalized) await dbPutTopic(t)
+  storeSet(topicsAtom, normalized)
+  const firstPairs = normalized.find((t) => t.type === 'pairs')
+  const firstTexts = normalized.find((t) => t.type === 'texts')
+  const firstSentences = normalized.find((t) => t.type === 'sentences')
   internalStore.set(activePairsTopicIdAtom, firstPairs?.id ?? null)
   internalStore.set(activeTextsTopicIdAtom, firstTexts?.id ?? null)
+  internalStore.set(activeSentencesTopicIdAtom, firstSentences?.id ?? null)
 }
 
 // ----- Pair 级别（操作活动配对专题）-----
@@ -425,6 +599,78 @@ export function findTextInTopics(
   for (const topic of topics) {
     const text = topic.texts.find((t) => t.id === textId)
     if (text) return { text, topic }
+  }
+  return null
+}
+
+// ----- Sentence 级别（操作活动组句专题）-----
+
+function getActiveSentencesTopicId(): string | null {
+  const topics = internalStore.get(topicsAtom)
+  const sentencesTopics = topics.filter((t) => t.type === 'sentences')
+  if (sentencesTopics.length === 0) return null
+  const id = internalStore.get(activeSentencesTopicIdAtom)
+  return sentencesTopics.find((t) => t.id === id) ? id : sentencesTopics[0]!.id
+}
+
+/** 在活动组句专题中新增或更新 sentence */
+export async function persistSentence(sentence: SentenceItem): Promise<void> {
+  const topicId = getActiveSentencesTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const idx = topic.sentences.findIndex((s) => s.id === sentence.id)
+  const nextSentences =
+    idx === -1
+      ? [...topic.sentences, sentence]
+      : topic.sentences.map((s) => (s.id === sentence.id ? sentence : s))
+  await persistTopic({ ...topic, sentences: nextSentences })
+}
+
+/** 在活动组句专题中删除 sentence */
+export async function removeSentence(id: string): Promise<void> {
+  const topicId = getActiveSentencesTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({
+    ...topic,
+    sentences: topic.sentences.filter((s) => s.id !== id),
+  })
+}
+
+/** 清空活动组句专题的所有 sentence */
+export async function resetAllSentences(): Promise<void> {
+  const topicId = getActiveSentencesTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({ ...topic, sentences: [] })
+}
+
+/** 批量替换活动组句专题的 sentence（用于导入/恢复默认） */
+export async function persistSentences(sentences: SentenceItem[]): Promise<void> {
+  const topicId = getActiveSentencesTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  await persistTopic({ ...topic, sentences })
+}
+
+// ----- 跨专题查找组句题目 -----
+
+/** 按 sentenceId 在所有专题中查找所属题目与专题 */
+export function findSentenceInTopics(
+  topics: Topic[],
+  sentenceId: string,
+): { sentence: SentenceItem; topic: Topic } | null {
+  for (const topic of topics) {
+    const sentence = topic.sentences.find((s) => s.id === sentenceId)
+    if (sentence) return { sentence, topic }
   }
   return null
 }

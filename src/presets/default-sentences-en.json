@@ -1,0 +1,62 @@
+[
+  {
+    "id": "sentence_en_1",
+    "answer": "I love you",
+    "hint": "我爱你",
+    "words": ["I", "love", "you"]
+  },
+  {
+    "id": "sentence_en_2",
+    "answer": "Where is the library",
+    "hint": "图书馆在哪里",
+    "words": ["Where", "is", "the", "library"]
+  },
+  {
+    "id": "sentence_en_3",
+    "answer": "I want to eat an apple",
+    "hint": "我想吃个苹果",
+    "words": ["I", "want", "to", "eat", "an", "apple"]
+  },
+  {
+    "id": "sentence_en_4",
+    "answer": "What time is it",
+    "hint": "现在几点了",
+    "words": ["What", "time", "is", "it"]
+  },
+  {
+    "id": "sentence_en_5",
+    "answer": "She is my friend",
+    "hint": "她是我的朋友",
+    "words": ["She", "is", "my", "friend"]
+  },
+  {
+    "id": "sentence_en_6",
+    "answer": "How much does it cost",
+    "hint": "这个多少钱",
+    "words": ["How", "much", "does", "it", "cost"]
+  },
+  {
+    "id": "sentence_en_7",
+    "answer": "I like reading books",
+    "hint": "我喜欢看书",
+    "words": ["I", "like", "reading", "books"]
+  },
+  {
+    "id": "sentence_en_8",
+    "answer": "The weather is nice today",
+    "hint": "今天天气很好",
+    "words": ["The", "weather", "is", "nice", "today"]
+  },
+  {
+    "id": "sentence_en_9",
+    "answer": "Can you help me",
+    "hint": "你能帮我吗",
+    "words": ["Can", "you", "help", "me"]
+  },
+  {
+    "id": "sentence_en_10",
+    "answer": "We go to school together",
+    "hint": "我们一起去上学",
+    "words": ["We", "go", "to", "school", "together"]
+  }
+]

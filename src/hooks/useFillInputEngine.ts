@@ -88,7 +88,9 @@ export function useFillInputEngine(textId: string | null) {
         standardAnswer: b.answer,
       }))
       const req: AiJudgeRequest = { text: text.content, blanks }
-      const resp = await judgeBlanks(settings, req)
+      const resp = await judgeBlanks(settings, req, {
+        modelOverride: text.aiModel,
+      })
       const results: FillBlankResult[] = resp.results.map((r) => {
         const original = blanks.find((b) => b.id === r.blankId)
         return {

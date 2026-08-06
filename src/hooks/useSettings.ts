@@ -30,9 +30,13 @@ export function useSettings() {
     const defaults: AppSettings = {
       soundEnabled: true,
       darkMode: false,
+      // 旧字段清空
       aiEndpoint: '',
       aiApiKey: '',
-      aiModel: 'gpt-4o-mini',
+      aiModel: '',
+      aiProviders: [],
+      defaultAiProviderId: null,
+      defaultAiModel: 'gpt-4o-mini',
     }
     setSettings(defaults)
     await persistSettings(defaults)

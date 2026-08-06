@@ -4,6 +4,8 @@ import { PairList } from '@/components/PairList'
 import { PairForm } from '@/components/PairForm'
 import { TextList } from '@/components/TextList'
 import { TextForm } from '@/components/TextForm'
+import { SentenceList } from '@/components/SentenceList'
+import { SentenceForm } from '@/components/SentenceForm'
 import { ImportExportPanel } from '@/components/ImportExportPanel'
 import { AiGenerateDialog } from '@/components/AiGenerateDialog'
 import { Button } from '@/components/ui/button'
@@ -16,12 +18,16 @@ import {
 } from '@/components/ui/dialog'
 import { useDeck } from '@/hooks/useDeck'
 import { useTexts } from '@/hooks/useTexts'
+import { useSentences } from '@/hooks/useSentences'
 import { useTopics } from '@/hooks/useTopics'
 import { replaceAllTopics } from '@/store/atoms'
-import type { PairItem, TextItem, Topic, TopicType } from '@/types'
+import type { PairItem, SentenceItem, TextItem, Topic, TopicType } from '@/types'
 import { cn, uid } from '@/lib/utils'
 import defaultPairs from '@/presets/default-pairs.json'
 import defaultTexts from '@/presets/default-texts.json'
+import defaultSentencesZh from '@/presets/default-sentences-zh.json'
+import defaultSentencesYue from '@/presets/default-sentences-yue.json'
+import defaultSentencesEn from '@/presets/default-sentences-en.json'
 import { Plus, FolderPlus, Pencil, Trash2, Check, X } from 'lucide-react'
 
 type TabKey = TopicType
@@ -36,6 +42,7 @@ export default function ManagePairsPage() {
   const topicsApi = useTopics()
   const deckApi = useDeck()
   const textsApi = useTexts()
+  const sentencesApi = useSentences()
   const [tab, setTab] = useState<TabKey>('pairs')
 
   // 配对 Dialog
@@ -45,6 +52,10 @@ export default function ManagePairsPage() {
   // 文本 Dialog
   const [textDialogOpen, setTextDialogOpen] = useState(false)
   const [editingText, setEditingText] = useState<TextItem | null>(null)
+
+  // 组句 Dialog
+  const [sentenceDialogOpen, setSentenceDialogOpen] = useState(false)
+  const [editingSentence, setEditingSentence] = useState<SentenceItem | null>(null)
 
   // AI 批量生成 Dialog
   const [aiDialogOpen, setAiDialogOpen] = useState(false)
@@ -61,11 +72,17 @@ export default function ManagePairsPage() {
   const { topics } = topicsApi
   const tabTopics = topics.filter((t) => t.type === tab)
   const activeTopicId =
-    tab === 'pairs' ? topicsApi.activePairsTopicId : topicsApi.activeTextsTopicId
+    tab === 'pairs'
+      ? topicsApi.activePairsTopicId
+      : tab === 'texts'
+        ? topicsApi.activeTextsTopicId
+        : topicsApi.activeSentencesTopicId
   const setActiveTopicId =
     tab === 'pairs'
       ? topicsApi.setActivePairsTopicId
-      : topicsApi.setActiveTextsTopicId
+      : tab === 'texts'
+        ? topicsApi.setActiveTextsTopicId
+        : topicsApi.setActiveSentencesTopicId
   const activeTopic = tabTopics.find((t) => t.id === activeTopicId) ?? tabTopics[0] ?? null
 
   // ----- Topic 操作 -----
@@ -135,6 +152,22 @@ export default function ManagePairsPage() {
     setEditingText(null)
   }
 
+  // ----- Sentence 操作 -----
+  const openAddSentence = () => {
+    setEditingSentence(null)
+    setSentenceDialogOpen(true)
+  }
+  const openEditSentence = (sentence: SentenceItem) => {
+    setEditingSentence(sentence)
+    setSentenceDialogOpen(true)
+  }
+  const handleSentenceSubmit = async (sentence: SentenceItem) => {
+    if (editingSentence) await sentencesApi.update(sentence)
+    else await sentencesApi.add(sentence)
+    setSentenceDialogOpen(false)
+    setEditingSentence(null)
+  }
+
   // ----- AI 批量生成 -----
   const openAiGenerate = () => {
     setAiDialogOpen(true)
@@ -160,6 +193,7 @@ export default function ManagePairsPage() {
       type: 'pairs',
       pairs: defaultPairs as PairItem[],
       texts: [],
+      sentences: [],
     }
     const textsTopic: Topic = {
       id: uid('topic'),
@@ -167,11 +201,42 @@ export default function ManagePairsPage() {
       type: 'texts',
       pairs: [],
       texts: defaultTexts as TextItem[],
+      sentences: [],
     }
-    await replaceAllTopics([pairsTopic, textsTopic])
+    const sentencesZhTopic: Topic = {
+      id: uid('topic'),
+      name: '普通话组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesZh as SentenceItem[],
+    }
+    const sentencesYueTopic: Topic = {
+      id: uid('topic'),
+      name: '粤语组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesYue as SentenceItem[],
+    }
+    const sentencesEnTopic: Topic = {
+      id: uid('topic'),
+      name: '英语组句',
+      type: 'sentences',
+      pairs: [],
+      texts: [],
+      sentences: defaultSentencesEn as SentenceItem[],
+    }
+    await replaceAllTopics([
+      pairsTopic,
+      textsTopic,
+      sentencesZhTopic,
+      sentencesYueTopic,
+      sentencesEnTopic,
+    ])
   }
 
-  const tabKeys: TabKey[] = ['pairs', 'texts']
+  const tabKeys: TabKey[] = ['pairs', 'texts', 'sentences']
 
   return (
     <AppShell title="题库管理">
@@ -193,7 +258,11 @@ export default function ManagePairsPage() {
                 )}
                 onClick={() => setTab(t)}
               >
-                {t === 'pairs' ? `配对专题 (${count})` : `填空专题 (${count})`}
+                {t === 'pairs'
+                  ? `配对专题 (${count})`
+                  : t === 'texts'
+                    ? `填空专题 (${count})`
+                    : `组句专题 (${count})`}
               </Button>
             )
           })}
@@ -203,7 +272,11 @@ export default function ManagePairsPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">
-              {tab === 'pairs' ? '配对专题' : '填空专题'}
+              {tab === 'pairs'
+                ? '配对专题'
+                : tab === 'texts'
+                  ? '填空专题'
+                  : '组句专题'}
             </span>
             <Button variant="outline" size="sm" onClick={() => openAddTopic(tab)}>
               <FolderPlus className="h-4 w-4" />
@@ -215,7 +288,11 @@ export default function ManagePairsPage() {
               const isActive = topic.id === activeTopicId
               const isRenaming = renamingId === topic.id
               const itemCount =
-                topic.type === 'pairs' ? topic.pairs.length : topic.texts.length
+                topic.type === 'pairs'
+                  ? topic.pairs.length
+                  : topic.type === 'texts'
+                    ? topic.texts.length
+                    : topic.sentences.length
               return (
                 <div
                   key={topic.id}
@@ -309,6 +386,14 @@ export default function ManagePairsPage() {
             onAiGenerate={openAiGenerate}
           />
         )}
+        {tab === 'sentences' && activeTopic && (
+          <SentenceList
+            sentences={sentencesApi.sentences}
+            onAdd={openAddSentence}
+            onEdit={openEditSentence}
+            onDelete={(id) => void sentencesApi.remove(id)}
+          />
+        )}
 
         {/* 导入导出 */}
         <ImportExportPanel
@@ -328,7 +413,13 @@ export default function ManagePairsPage() {
       >
         <DialogHeader>
           <DialogTitle>
-            新增{newTopicType === 'pairs' ? '配对' : '填空'}专题
+            新增
+            {newTopicType === 'pairs'
+              ? '配对'
+              : newTopicType === 'texts'
+                ? '填空'
+                : '组句'}
+            专题
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3 p-4">
@@ -400,6 +491,31 @@ export default function ManagePairsPage() {
           onCancel={() => {
             setTextDialogOpen(false)
             setEditingText(null)
+          }}
+        />
+        <DialogClose />
+      </Dialog>
+
+      {/* 组句 Dialog */}
+      <Dialog
+        open={sentenceDialogOpen}
+        onOpenChange={(o) => {
+          setSentenceDialogOpen(o)
+          if (!o) setEditingSentence(null)
+        }}
+        contentClassName="max-w-2xl"
+      >
+        <DialogHeader>
+          <DialogTitle>
+            {editingSentence ? '编辑组句题' : '新增组句题'}
+          </DialogTitle>
+        </DialogHeader>
+        <SentenceForm
+          initial={editingSentence}
+          onSubmit={handleSentenceSubmit}
+          onCancel={() => {
+            setSentenceDialogOpen(false)
+            setEditingSentence(null)
           }}
         />
         <DialogClose />
