@@ -37,6 +37,9 @@ export function useSettings() {
       aiProviders: [],
       defaultAiProviderId: null,
       defaultAiModel: 'gpt-4o-mini',
+      webdavUrl: '',
+      webdavUsername: '',
+      webdavPassword: '',
     }
     setSettings(defaults)
     await persistSettings(defaults)

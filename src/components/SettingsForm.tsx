@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AiApiFormat, AiProvider, AppSettings, ModelConfig } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,6 +29,9 @@ import {
   ChevronUp,
   RefreshCw,
   Loader2,
+  Cloud,
+  Check,
+  AlertCircle,
 } from 'lucide-react'
 
 export interface SettingsFormProps {
@@ -50,19 +53,40 @@ export function SettingsForm({
 }: SettingsFormProps) {
   const [form, setForm] = useState<AppSettings>(settings)
   const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showAddPreset, setShowAddPreset] = useState(false)
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null)
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
   const [refreshingProviderId, setRefreshingProviderId] = useState<string | null>(null)
   const [refreshErrors, setRefreshErrors] = useState<Record<string, string>>({})
-
+  const [showWebdavPass, setShowWebdavPass] = useState(false)
   const patch = (p: Partial<AppSettings>) =>
     setForm((cur) => ({ ...cur, ...p }))
 
+  useEffect(() => {
+    return () => {
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current)
+    }
+  }, [])
+
   const handleSave = async () => {
     setSaving(true)
+    setSaveStatus('idle')
+    if (saveStatusTimerRef.current) {
+      clearTimeout(saveStatusTimerRef.current)
+      saveStatusTimerRef.current = null
+    }
     try {
       await onSubmit(form)
+      setSaveStatus('success')
+      saveStatusTimerRef.current = setTimeout(() => {
+        setSaveStatus('idle')
+        saveStatusTimerRef.current = null
+      }, 1500)
+    } catch (e) {
+      setSaveStatus('error')
+      console.error('保存设置失败', e)
     } finally {
       setSaving(false)
     }
@@ -468,15 +492,86 @@ export function SettingsForm({
           />
         </div>
 
-        <div className="flex justify-between gap-2">
+        {/* WebDAV 同步 */}
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center gap-2">
+            <Cloud className="h-4 w-4" />
+            <Label>WebDAV 同步</Label>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">WebDAV 地址</Label>
+            <Input
+              value={form.webdavUrl}
+              onChange={(e) => patch({ webdavUrl: e.target.value })}
+              placeholder="https://dav.example.com/echo"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">用户名</Label>
+            <Input
+              value={form.webdavUsername}
+              onChange={(e) => patch({ webdavUsername: e.target.value })}
+              placeholder="WebDAV 用户名"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">密码</Label>
+            <div className="flex items-center gap-1">
+              <Input
+                type={showWebdavPass ? 'text' : 'password'}
+                value={form.webdavPassword}
+                onChange={(e) => patch({ webdavPassword: e.target.value })}
+                placeholder="WebDAV 密码"
+                autoComplete="off"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowWebdavPass((s) => !s)}
+                title={showWebdavPass ? '隐藏' : '显示'}
+              >
+                {showWebdavPass ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            配置后，每次打开应用自动拉取，修改后自动推送同步。
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
           <Button variant="ghost" onClick={() => onReset()} disabled={saving}>
             <RotateCcw className="h-4 w-4" />
             重置
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="h-4 w-4" />
-            保存
-          </Button>
+          <div className="flex items-center gap-2">
+            {saveStatus === 'success' && (
+              <span className="flex items-center gap-1 text-sm text-success">
+                <Check className="h-4 w-4" />
+                已保存
+              </span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="flex items-center gap-1 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                保存失败
+              </span>
+            )}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              保存
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

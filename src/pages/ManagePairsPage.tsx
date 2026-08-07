@@ -173,11 +173,15 @@ export default function ManagePairsPage() {
     setAiDialogOpen(true)
   }
 
-  const handleAiConfirm = async (items: PairItem[] | TextItem[]) => {
+  const handleAiConfirm = async (
+    items: PairItem[] | TextItem[] | SentenceItem[],
+  ) => {
     if (tab === 'pairs') {
       await deckApi.mergeImport(items as PairItem[])
-    } else {
+    } else if (tab === 'texts') {
       await textsApi.mergeImport(items as TextItem[])
+    } else {
+      await sentencesApi.mergeImport(items as SentenceItem[])
     }
   }
 
@@ -392,6 +396,7 @@ export default function ManagePairsPage() {
             onAdd={openAddSentence}
             onEdit={openEditSentence}
             onDelete={(id) => void sentencesApi.remove(id)}
+            onAiGenerate={openAiGenerate}
           />
         )}
 

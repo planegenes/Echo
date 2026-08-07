@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { PairItem, TextItem, TopicType } from '@/types'
+import type { PairItem, SentenceItem, TextItem, TopicType } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { ContentRenderer } from '@/components/ContentRenderer'
 import { parseText } from '@/lib/parser'
-import { generatePairs, generateTexts } from '@/lib/ai-generate'
+import { generatePairs, generateSentences, generateTexts } from '@/lib/ai-generate'
 import { useSettingsValue } from '@/store/atoms'
 import { isAiConfigured } from '@/lib/ai'
 import { Loader2, Sparkles, Trash2, Check } from 'lucide-react'
@@ -23,7 +23,7 @@ export interface AiGenerateDialogProps {
   onOpenChange: (open: boolean) => void
   topicType: TopicType
   /** 确认添加，传入剩余（未删除）的题目 */
-  onConfirm: (items: PairItem[] | TextItem[]) => Promise<void>
+  onConfirm: (items: PairItem[] | TextItem[] | SentenceItem[]) => Promise<void>
 }
 
 /**
@@ -45,6 +45,7 @@ export function AiGenerateDialog({
   const [error, setError] = useState<string | null>(null)
   const [pairs, setPairs] = useState<PairItem[]>([])
   const [texts, setTexts] = useState<TextItem[]>([])
+  const [sentences, setSentences] = useState<SentenceItem[]>([])
   const [confirming, setConfirming] = useState(false)
 
   // 关闭时重置全部状态
@@ -54,6 +55,7 @@ export function AiGenerateDialog({
       setError(null)
       setPairs([])
       setTexts([])
+      setSentences([])
       setLoading(false)
       setConfirming(false)
     }
@@ -63,6 +65,7 @@ export function AiGenerateDialog({
   useEffect(() => {
     setPairs([])
     setTexts([])
+    setSentences([])
     setError(null)
   }, [topicType])
 
@@ -83,12 +86,20 @@ export function AiGenerateDialog({
         const result = await generatePairs(settings, prompt)
         setPairs(result)
         setTexts([])
+        setSentences([])
         if (result.length === 0) setError('AI 未返回有效配对')
-      } else {
+      } else if (topicType === 'texts') {
         const result = await generateTexts(settings, prompt)
         setTexts(result)
         setPairs([])
+        setSentences([])
         if (result.length === 0) setError('AI 未返回有效文本')
+      } else {
+        const result = await generateSentences(settings, prompt)
+        setSentences(result)
+        setPairs([])
+        setTexts([])
+        if (result.length === 0) setError('AI 未返回有效组句题')
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成失败')
@@ -103,8 +114,16 @@ export function AiGenerateDialog({
   const handleRemoveText = (id: string) => {
     setTexts((arr) => arr.filter((t) => t.id !== id))
   }
+  const handleRemoveSentence = (id: string) => {
+    setSentences((arr) => arr.filter((s) => s.id !== id))
+  }
 
-  const remaining = topicType === 'pairs' ? pairs.length : texts.length
+  const remaining =
+    topicType === 'pairs'
+      ? pairs.length
+      : topicType === 'texts'
+        ? texts.length
+        : sentences.length
 
   const handleConfirm = async () => {
     if (remaining === 0) return
@@ -113,8 +132,10 @@ export function AiGenerateDialog({
     try {
       if (topicType === 'pairs') {
         await onConfirm(pairs)
-      } else {
+      } else if (topicType === 'texts') {
         await onConfirm(texts)
+      } else {
+        await onConfirm(sentences)
       }
       onOpenChange(false)
     } catch (e) {
@@ -128,14 +149,17 @@ export function AiGenerateDialog({
   const placeholder =
     topicType === 'pairs'
       ? '例如：生成 10 个中国省份与省会的配对'
-      : '例如：生成 8 道关于中国历史的填空题，每题包含 1-2 个空白'
+      : topicType === 'texts'
+        ? '例如：生成 8 道关于中国历史的填空题，每题包含 1-2 个空白'
+        : '例如：生成 10 道英语日常对话组句题，附中文提示'
+
+  const titleSuffix =
+    topicType === 'pairs' ? '配对题' : topicType === 'texts' ? '填空题' : '组句题'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>
-          AI 批量生成{topicType === 'pairs' ? '配对题' : '填空题'}
-        </DialogTitle>
+        <DialogTitle>AI 批量生成{titleSuffix}</DialogTitle>
         <DialogDescription>
           输入需求，AI 将根据预设模板批量生成题目。可在结果中删除不需要的项后再添加到当前专题。
         </DialogDescription>
@@ -183,8 +207,14 @@ export function AiGenerateDialog({
         {/* 结果列表 */}
         {topicType === 'pairs' ? (
           <PairResultList pairs={pairs} onRemove={handleRemovePair} disabled={busy} />
-        ) : (
+        ) : topicType === 'texts' ? (
           <TextResultList texts={texts} onRemove={handleRemoveText} disabled={busy} />
+        ) : (
+          <SentenceResultList
+            sentences={sentences}
+            onRemove={handleRemoveSentence}
+            disabled={busy}
+          />
         )}
       </div>
 
@@ -342,6 +372,76 @@ function TextPreview({ content }: { content: string }) {
       <Badge variant="outline" className="text-xs">
         {blankCount} 空白
       </Badge>
+    </div>
+  )
+}
+
+interface SentenceResultListProps {
+  sentences: SentenceItem[]
+  onRemove: (id: string) => void
+  disabled: boolean
+}
+
+function SentenceResultList({
+  sentences,
+  onRemove,
+  disabled,
+}: SentenceResultListProps) {
+  if (sentences.length === 0) return null
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">
+          生成结果（{sentences.length}）
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => sentences.forEach((s) => onRemove(s.id))}
+          disabled={disabled}
+        >
+          清空
+        </Button>
+      </div>
+      <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
+        {sentences.map((s) => (
+          <li key={s.id} className="rounded-md border bg-card p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 space-y-1.5">
+                <div className="text-sm font-medium">{s.answer}</div>
+                {s.hint && (
+                  <div className="text-xs text-muted-foreground">
+                    提示：{s.hint}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-1">
+                  {s.words.map((w, i) => (
+                    <span
+                      key={i}
+                      className="rounded border bg-muted/40 px-1.5 py-0.5 text-xs"
+                    >
+                      {w}
+                    </span>
+                  ))}
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {s.words.length} 词
+                </Badge>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onRemove(s.id)}
+                title="删除"
+                disabled={disabled}
+                className="shrink-0"
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

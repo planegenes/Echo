@@ -173,6 +173,10 @@ export interface AppSettings {
   defaultAiProviderId: string | null
   /** 默认 AI 模型名 */
   defaultAiModel: string
+  /** WebDAV 同步配置 */
+  webdavUrl: string
+  webdavUsername: string
+  webdavPassword: string
 }
 
 // ===== 测验会话状态 =====

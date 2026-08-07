@@ -64,6 +64,9 @@ export const settingsAtom = atomWithStorage<AppSettings>('pair-quiz:settings', {
   aiProviders: [],
   defaultAiProviderId: null,
   defaultAiModel: 'gpt-4o-mini',
+  webdavUrl: '',
+  webdavUsername: '',
+  webdavPassword: '',
 })
 
 // ===== 派生状态 =====
@@ -458,6 +461,33 @@ export async function replaceAllTopics(newTopics: Topic[]): Promise<void> {
   internalStore.set(activePairsTopicIdAtom, firstPairs?.id ?? null)
   internalStore.set(activeTextsTopicIdAtom, firstTexts?.id ?? null)
   internalStore.set(activeSentencesTopicIdAtom, firstSentences?.id ?? null)
+}
+
+/** 替换所有专题但保留当前活动专题选择（用于 WebDAV 同步） */
+export async function syncAllTopics(newTopics: Topic[]): Promise<void> {
+  await dbClearTopics()
+  const normalized = newTopics.map((t) => ({
+    ...t,
+    sentences: t.sentences ?? [],
+  }))
+  for (const t of normalized) await dbPutTopic(t)
+  storeSet(topicsAtom, normalized)
+  // 保留当前活动专题选择，仅在不指向有效专题时回退
+  const pairsTopics = normalized.filter((t) => t.type === 'pairs')
+  const textsTopics = normalized.filter((t) => t.type === 'texts')
+  const sentencesTopics = normalized.filter((t) => t.type === 'sentences')
+  const curPairs = internalStore.get(activePairsTopicIdAtom)
+  if (!curPairs || !pairsTopics.find((t) => t.id === curPairs)) {
+    internalStore.set(activePairsTopicIdAtom, pairsTopics[0]?.id ?? null)
+  }
+  const curTexts = internalStore.get(activeTextsTopicIdAtom)
+  if (!curTexts || !textsTopics.find((t) => t.id === curTexts)) {
+    internalStore.set(activeTextsTopicIdAtom, textsTopics[0]?.id ?? null)
+  }
+  const curSentences = internalStore.get(activeSentencesTopicIdAtom)
+  if (!curSentences || !sentencesTopics.find((t) => t.id === curSentences)) {
+    internalStore.set(activeSentencesTopicIdAtom, sentencesTopics[0]?.id ?? null)
+  }
 }
 
 // ----- Pair 级别（操作活动配对专题）-----

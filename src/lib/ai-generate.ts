@@ -1,4 +1,4 @@
-import type { AppSettings, ContentFormat, PairItem, TextItem } from '@/types'
+import type { AppSettings, ContentFormat, PairItem, SentenceItem, TextItem } from '@/types'
 import { uid } from './utils'
 import {
   AiConfigError,
@@ -33,6 +33,14 @@ const TEXTS_SYSTEM =
   '例如：中国的首都是*北京*。光速约为**3×10^8**米/秒。' +
   '只返回 JSON，结构为 {"texts":[{"content":"文本内容，包含 *空白* 和 **加粗** 标记"}]}。' +
   '生成的题目应当准确、有意义、避免重复，每条文本应至少包含一个 *空白* 标记。'
+
+const SENTENCES_SYSTEM =
+  '你是一个题库生成助手，负责根据用户需求生成组句题目。' +
+  '每道题包含一个标准答案句子(answer)、一个提示(hint)、以及将答案切分后的单词数组(words)。' +
+  'words 中的单词按原句顺序拼接应能还原 answer（忽略标点符号）。' +
+  '切分粒度应为有意义的词或词组，不要切成单字。' +
+  '只返回 JSON，结构为 {"sentences":[{"answer":"标准答案","hint":"提示文本","words":["单词1","单词2"]}]}。' +
+  '生成的题目应当准确、有意义、避免重复。'
 
 export interface ChatMessage {
   role: 'system' | 'user'
@@ -212,4 +220,43 @@ export async function generateTexts(
       id: uid('text'),
       content: String(t.content),
     }) as TextItem)
+}
+
+/**
+ * 生成组句题
+ * AI 同时完成"生成句子"与"分词"两件事
+ * @param settings AI 接口配置
+ * @param userPrompt 用户需求描述
+ * @param opts 模型/供应商覆盖
+ */
+export async function generateSentences(
+  settings: AppSettings,
+  userPrompt: string,
+  opts?: AiCallOptions,
+): Promise<SentenceItem[]> {
+  const { model } = resolveAiCall(settings, opts)
+  const content = await callChat(settings, buildPayload(SENTENCES_SYSTEM, userPrompt, model), opts)
+  const obj = parseJsonObject(content)
+  const sentences = obj.sentences
+  if (!Array.isArray(sentences)) {
+    throw new AiResponseError('AI 返回缺少 sentences 数组')
+  }
+
+  return sentences
+    .filter((s): s is Record<string, unknown> => {
+      if (!s || typeof s !== 'object') return false
+      const x = s as Record<string, unknown>
+      return typeof x.answer === 'string' && x.answer.trim().length > 0
+    })
+    .map((s) => ({
+      id: uid('sentence'),
+      answer: String(s.answer).trim(),
+      hint: typeof s.hint === 'string' ? s.hint.trim() : '',
+      words: Array.isArray(s.words)
+        ? s.words
+            .filter((w): w is string => typeof w === 'string')
+            .map((w) => w.trim())
+            .filter((w) => w.length > 0)
+        : [],
+    }) as SentenceItem)
 }
