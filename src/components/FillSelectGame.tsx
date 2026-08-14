@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
+import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import { useFillSelectEngine } from '@/hooks/useFillSelectEngine'
 import { TextRenderer } from '@/components/TextRenderer'
 import { BlankSlot } from '@/components/BlankSlot'
@@ -103,6 +104,12 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
     if (overId.startsWith('blank:')) {
       const blankId = overId.slice('blank:'.length)
       engine.fillBlank(blankId, activeId)
+      return
+    }
+
+    // 候选区内排序：over 为另一个选项（非 pool、非 blank）
+    if (overId !== 'pool' && overId !== activeId) {
+      engine.reorderOptions(activeId, overId)
     }
   }
 
@@ -140,6 +147,8 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
   if (!engine.parsed || !engine.session) {
     return null
   }
+
+  const unusedOptions = engine.session.options.filter((o) => !o.used)
 
   return (
     <Card>
@@ -190,26 +199,29 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
 
           <OptionsPool>
             <div className="mb-2 text-xs text-muted-foreground">
-              选项区（可拖拽到空白，或点击选项再点击空白；已填入的选项可再次拖动）
+              选项区（可拖拽到空白、拖拽排序，或点击选项再点击空白）
             </div>
-            <div className="flex flex-wrap gap-2">
-              {engine.session.options.map((opt) => (
-                <WordOption
-                  key={opt.id}
-                  optionId={opt.id}
-                  value={opt.value}
-                  used={opt.used}
-                  selected={engine.selectedOptionId === opt.id}
-                  onClick={() => {
-                    if (engine.session!.confirmed) return
-                    if (opt.used) return
-                    engine.selectOption(
-                      engine.selectedOptionId === opt.id ? null : opt.id,
-                    )
-                  }}
-                />
-              ))}
-            </div>
+            <SortableContext
+              items={unusedOptions.map((o) => o.id)}
+              strategy={rectSortingStrategy}
+            >
+              <div className="flex flex-wrap gap-2">
+                {unusedOptions.map((opt) => (
+                  <WordOption
+                    key={opt.id}
+                    optionId={opt.id}
+                    value={opt.value}
+                    selected={engine.selectedOptionId === opt.id}
+                    onClick={() => {
+                      if (engine.session!.confirmed) return
+                      engine.selectOption(
+                        engine.selectedOptionId === opt.id ? null : opt.id,
+                      )
+                    }}
+                  />
+                ))}
+              </div>
+            </SortableContext>
           </OptionsPool>
 
           <DragOverlay>

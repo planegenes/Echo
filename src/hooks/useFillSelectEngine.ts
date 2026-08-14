@@ -173,6 +173,20 @@ export function useFillSelectEngine(textId: string | null) {
     [fillBlank],
   )
 
+  /** 候选区内拖拽排序：交换两个选项在列表中的位置 */
+  const reorderOptions = useCallback((activeId: string, overId: string) => {
+    setState((prev) => {
+      if (!prev.session || prev.session.confirmed) return prev
+      const options = prev.session.options.slice()
+      const from = options.findIndex((o) => o.id === activeId)
+      const to = options.findIndex((o) => o.id === overId)
+      if (from === -1 || to === -1 || from === to) return prev
+      const [moved] = options.splice(from, 1)
+      options.splice(to, 0, moved)
+      return { ...prev, session: { ...prev.session, options } }
+    })
+  }, [])
+
   /** 确认提交，逐空比对 */
   const confirm = useCallback(() => {
     setState((prev) => {
@@ -216,6 +230,7 @@ export function useFillSelectEngine(textId: string | null) {
     selectOption,
     fillBlank,
     clearBlank,
+    reorderOptions,
     confirm,
     reset,
   }
