@@ -113,6 +113,7 @@ export function ModelSelector({
     }
   }
 
+  const allModelIds = new Set(mergedGroups.flatMap((g) => g.models))
   const hasModels = mergedGroups.length > 0
   const canRefresh = providers.length > 0 && !loading && !disabled
 
@@ -128,6 +129,9 @@ export function ModelSelector({
         {!allowEmpty && !value && (
           <option value="">{placeholder ?? '请选择模型'}</option>
         )}
+        {hasModels && value && !allModelIds.has(value) ? (
+          <option value={value}>{value}</option>
+        ) : null}
         {hasModels ? (
           mergedGroups.map((g) => (
             <optgroup key={g.provider.id} label={g.provider.name}>

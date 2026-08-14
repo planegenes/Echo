@@ -344,6 +344,8 @@ export async function loadPersistedData(): Promise<void> {
 
   // 迁移旧 AI 设置：单一 aiEndpoint/aiApiKey → 供应商列表
   await migrateLegacyAiSettingsIfNeeded()
+  // 对账：localStorage 与 IndexedDB 两份设置副本可能漂移，恢复丢失的配置
+  await reconcileSettings()
 }
 
 /**
@@ -388,6 +390,35 @@ async function migrateLegacyAiSettingsIfNeeded(): Promise<void> {
       defaultAiProviderId: migrated.defaultAiProviderId,
       defaultAiModel: migrated.defaultAiModel,
     })
+  }
+}
+
+/** 判断设置里是否有"有意义"的配置（AI 供应商或 WebDAV），用于区分「未配置」与「已丢失」 */
+function hasMeaningfulConfig(s: AppSettings): boolean {
+  const hasProvider = (s.aiProviders ?? []).some(
+    (p) => p.baseUrl.trim().length > 0 || p.apiKey.trim().length > 0,
+  )
+  const hasWebdav = !!(s.webdavUrl && s.webdavUsername)
+  return hasProvider || hasWebdav
+}
+
+/**
+ * 设置对账：settingsAtom 以 localStorage 为读取源，persistSettings 又会写入 IndexedDB，
+ * 两份副本可能因浏览器只清 localStorage、或 IndexedDB 写入失败而漂移。
+ * - 本地无配置而 DB 有 → 从 DB 恢复本地（修复「设置经常消失」）
+ * - 本地有配置而 DB 无 → 回写 DB（补齐漂移）
+ */
+async function reconcileSettings(): Promise<void> {
+  const local = internalStore.get(settingsAtom)
+  const db = await loadSettingsFromDB()
+  if (!db) return
+  const localHas = hasMeaningfulConfig(local)
+  const dbHas = hasMeaningfulConfig(db)
+  if (!localHas && dbHas) {
+    internalStore.set(settingsAtom, { ...db })
+    await persistSettings(db)
+  } else if (localHas && !dbHas) {
+    await persistSettings(local)
   }
 }
 

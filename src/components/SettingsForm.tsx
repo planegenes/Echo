@@ -99,9 +99,16 @@ export function SettingsForm({
     if (!preset) return
     const provider = createProviderFromPreset(preset)
     const next = [...form.aiProviders, provider]
+    const becomesDefault = !form.defaultAiProviderId
     patch({
       aiProviders: next,
-      defaultAiProviderId: form.defaultAiProviderId ?? provider.id,
+      defaultAiProviderId: becomesDefault ? provider.id : form.defaultAiProviderId,
+      // 首个供应商成为默认时，同步默认模型为该预设推荐模型，
+      // 避免默认模型仍是旧值（如 gpt-4o-mini）导致调用时传错模型
+      defaultAiModel:
+        becomesDefault && preset.defaultModel
+          ? preset.defaultModel
+          : form.defaultAiModel,
     })
     setExpandedProviderId(provider.id)
     setShowAddPreset(false)
@@ -159,7 +166,15 @@ export function SettingsForm({
   }
 
   const handleSetDefault = (id: string) => {
-    patch({ defaultAiProviderId: id })
+    const provider = form.aiProviders.find((p) => p.id === id)
+    if (!provider) return
+    const preset = provider.presetId ? findPreset(provider.presetId) : undefined
+    // 切换默认供应商时同步默认模型，避免默认模型仍是旧供应商的模型
+    const nextModel = preset?.defaultModel ?? provider.models?.[0] ?? form.defaultAiModel
+    patch({
+      defaultAiProviderId: id,
+      defaultAiModel: nextModel,
+    })
   }
 
   const toggleShowKey = (id: string) => {
