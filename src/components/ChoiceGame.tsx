@@ -48,6 +48,7 @@ export function ChoiceGame() {
   const { session } = engine
   const resolved = session.resolved !== 'idle'
   const isIrrelevant = (id: string) => engine.markedIrrelevantIds.includes(id)
+  const isEliminated = (id: string) => engine.eliminatedIds.includes(id)
 
   return (
     <div className="space-y-4">
@@ -89,12 +90,16 @@ export function ChoiceGame() {
                 key={opt.id}
                 value={opt.value}
                 format={opt.format}
-                selected={session.selectedId === opt.id}
-                resolved={session.resolved}
-                isCorrectAnswer={opt.value === session.answerValue}
-                markedIrrelevant={isIrrelevant(opt.id)}
+                showCorrect={
+                  (session.resolved === 'correct' ||
+                    session.resolved === 'revealed') &&
+                  opt.value === session.answerValue
+                }
+                justWrong={engine.justWrongId === opt.id}
+                dimmed={isEliminated(opt.id) || isIrrelevant(opt.id)}
+                canUnDim={isIrrelevant(opt.id)}
                 onLongPress={() => engine.toggleIrrelevant(opt.id)}
-                disabled={resolved}
+                disabled={resolved || engine.justWrongId !== null}
                 onClick={() => engine.selectOption(opt.id)}
               />
             ))}
@@ -106,8 +111,11 @@ export function ChoiceGame() {
             </p>
           )}
 
-          {resolved && (
-            <div className="flex justify-end">
+          {session.resolved === 'revealed' && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                答题结束，正确答案已高亮显示
+              </p>
               <Button onClick={() => engine.next()}>下一题</Button>
             </div>
           )}

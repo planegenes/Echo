@@ -150,7 +150,7 @@ export interface ChoiceSession {
   answerValue: string
   options: { id: string; value: string; format: ContentFormat }[]
   selectedId: string | null
-  resolved: 'idle' | 'correct' | 'wrong'
+  resolved: 'idle' | 'correct' | 'revealed'
 }
 
 export const choiceSessionAtom = atom<ChoiceSession | null>(null)
