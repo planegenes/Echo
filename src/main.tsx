@@ -9,6 +9,7 @@ import { checkDailyStreakOnOpen, dailyStreakAtom, dayLogsAtom } from '@/store/da
 import { snapshotUpdatedAtAtom } from '@/store/sync'
 import { syncPull, scheduleSyncPush, isSyncing } from '@/lib/sync'
 import { isWebDAVConfigured } from '@/lib/webdav'
+import { setupPwa } from '@/lib/pwa'
 
 const rootEl = document.getElementById('root')
 if (!rootEl) throw new Error('Root element #root not found')
@@ -47,4 +48,7 @@ void loadPersistedData().finally(async () => {
       </JotaiProvider>
     </StrictMode>,
   )
+
+  // 注册 Service Worker，检测到新版本时提示刷新
+  setupPwa()
 })
