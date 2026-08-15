@@ -1,15 +1,29 @@
 import * as React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Layers, FileText, BookOpen, Settings, Sun, Moon, Puzzle } from 'lucide-react'
+import { Home, Layers, FileText, BookOpen, Settings, Sun, Moon, Puzzle, Coins, Flame } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Logo } from '@/components/Logo'
 import { cn } from '@/lib/utils'
 import { useSettingsValue, useSetSettings } from '@/store/atoms'
+import { usePointsValue } from '@/hooks/usePoints'
+import { useDailyStreakValue } from '@/hooks/useDailyStreak'
+import { CalendarPopover } from '@/components/CalendarPopover'
 
 interface NavItem {
   to: string
   label: string
   icon: React.ComponentType<{ className?: string }>
+}
+
+/**
+ * 连胜火焰图标颜色：
+ * - 0 天（已断）：灰色（由调用方 className 控制）
+ * - 1~29 天：由黄（hue 48）渐变为橘红（hue 20）
+ * - 30 天及以上：保持橘红不变
+ */
+function flameColor(streakDays: number): string {
+  const hue = Math.max(20, Math.round(48 - ((streakDays - 1) / 29) * 28))
+  return `hsl(${hue} 100% 55%)`
 }
 
 const NAV: NavItem[] = [
@@ -38,7 +52,46 @@ export interface AppShellProps {
 export function AppShell({ children, title, extra }: AppShellProps) {
   const settings = useSettingsValue()
   const setSettings = useSetSettings()
+  const { points, streak } = usePointsValue()
+  const { streakDays } = useDailyStreakValue()
   const location = useLocation()
+
+  // 积分增减浮动提示
+  const prevPointsRef = React.useRef(points)
+  const floatRef = React.useRef<HTMLSpanElement | null>(null)
+  const [floatDelta, setFloatDelta] = React.useState<{
+    value: number
+    key: number
+  } | null>(null)
+
+  React.useEffect(() => {
+    const prev = prevPointsRef.current
+    if (points !== prev) {
+      setFloatDelta({ value: points - prev, key: Date.now() })
+      prevPointsRef.current = points
+    }
+  }, [points])
+
+  // 用 Web Animations API 播放上浮淡出动画（支持自定义曲线与更多参数）
+  React.useEffect(() => {
+    const el = floatRef.current
+    if (!el || !floatDelta) return
+    if (typeof el.animate !== 'function') return
+    const anim = el.animate(
+      [
+        { top: '10%', opacity: 0 },
+        { top: '0%', opacity: 1, offset: 0.2 },
+        { top: '-20%', opacity: 1, offset: 0.8 },
+        { top: '-30%', opacity: 0 },
+      ],
+      {
+        duration: 900,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards',
+      },
+    )
+    return () => anim.cancel()
+  }, [floatDelta])
 
   const toggleDark = () => {
     const next = !settings.darkMode
@@ -85,6 +138,51 @@ export function AppShell({ children, title, extra }: AppShellProps) {
               )
             })}
           </nav>
+          {/* 连续答题（hover 弹出当月打卡日历） */}
+          <div className="group relative">
+            <div
+              className="flex items-center gap-1.5 text-sm font-semibold tabular-nums"
+              title={`连续答题 ${streakDays} 天`}
+            >
+              <Flame
+                className={cn(
+                  'h-4 w-4',
+                  streakDays <= 0 && 'text-muted-foreground',
+                )}
+                style={
+                  streakDays > 0 ? { color: flameColor(streakDays) } : undefined
+                }
+              />
+              <span>{streakDays}</span>
+            </div>
+            <CalendarPopover />
+          </div>
+          <div
+            className="flex items-center gap-1.5 text-sm font-semibold tabular-nums"
+            title={`累计积分 ${points} · 连续答对 ${streak} 题`}
+          >
+            <Coins className="h-4 w-4 text-amber-500" />
+            <span
+              key={points}
+              className="relative inline-block animate-[points-bump_0.4s_ease-out]"
+            >
+              {points}
+              {floatDelta && (
+                <span
+                  key={floatDelta.key}
+                  ref={floatRef}
+                  className={cn(
+                    'pointer-events-none absolute left-full whitespace-nowrap text-xs font-bold',
+                    floatDelta.value >= 0 ? 'text-emerald-500' : 'text-red-500',
+                  )}
+                >
+                  {floatDelta.value > 0
+                    ? `+${floatDelta.value}`
+                    : floatDelta.value}
+                </span>
+              )}
+            </span>
+          </div>
           <a
             href="https://github.com/planegenes/Echo"
             target="_blank"

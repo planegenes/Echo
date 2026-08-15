@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
+import { usePointsRecorder } from '@/hooks/usePoints'
 import type { FillBlankResult, ParsedText, TextItem } from '@/types'
 import { topicsAtom, findTextInTopics, type FillSelectSession } from '@/store/atoms'
 import { buildBlankPad, collectAllBlankAnswers, parseText } from '@/lib/parser'
@@ -74,6 +75,7 @@ function prepareOptions(
 
 export function useFillSelectEngine(textId: string | null) {
   const topics = useAtomValue(topicsAtom)
+  const { queueResult } = usePointsRecorder()
 
   const { text, topicTexts } = useMemo(() => {
     if (!textId) return { text: null, topicTexts: [] as TextItem[] }
@@ -206,13 +208,14 @@ export function useFillSelectEngine(textId: string | null) {
           correct: userAnswer === standard,
         })
       }
+      queueResult(results.every((r) => r.correct))
       return {
         ...prev,
         session: { ...prev.session, confirmed: true },
         results,
       }
     })
-  }, [])
+  }, [queueResult])
 
   const reset = useCallback(() => start(), [start])
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
+import { usePointsRecorder } from '@/hooks/usePoints'
 import type { TranslateResult, TranslateSession } from '@/types'
 import { topicsAtom, settingsAtom, findSentenceInTopics } from '@/store/atoms'
 import { isAiConfigured } from '@/lib/ai'
@@ -21,6 +22,7 @@ interface TranslateState {
 export function useSentenceTranslateEngine(sentenceId: string | null) {
   const topics = useAtomValue(topicsAtom)
   const settings = useAtomValue(settingsAtom)
+  const { queueResult } = usePointsRecorder()
 
   const sentence = useMemo(() => {
     if (!sentenceId) return null
@@ -82,6 +84,7 @@ export function useSentenceTranslateEngine(sentenceId: string | null) {
         // 未配置 AI：仅字面比对
         result = { correct: false, exactMatch: false }
       }
+      queueResult(result.correct)
       setState((prev) => ({
         ...prev,
         session: prev.session
@@ -94,7 +97,7 @@ export function useSentenceTranslateEngine(sentenceId: string | null) {
       const msg = err instanceof Error ? err.message : String(err)
       setState((prev) => ({ ...prev, loading: false, error: msg }))
     }
-  }, [sentence, state.session, aiReady, settings])
+  }, [sentence, state.session, aiReady, settings, queueResult])
 
   const reset = useCallback(() => start(), [start])
 

@@ -1,3 +1,6 @@
+import type { PointsState } from '@/store/points'
+import type { DailyStreakState, DayLogs } from '@/lib/dailyStreak'
+
 /**
  * 全局类型定义
  * 详见 spec 第 3 节数据模型
@@ -220,4 +223,12 @@ export interface AiJudgeResponse {
 
 export interface Snapshot {
   topics: Topic[]
+  /** 积分与连续答对（WebDAV 同步用，可选） */
+  points?: PointsState
+  /** 每日进度标量（WebDAV 同步用，可选） */
+  dailyStreak?: DailyStreakState
+  /** 每日打卡日志（WebDAV 同步用，可选） */
+  dayLogs?: DayLogs
+  /** 快照最后更新时间戳（last-write-wins 同步用） */
+  updatedAt?: number
 }

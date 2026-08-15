@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
+import { usePointsRecorder } from '@/hooks/usePoints'
 import type { FillBlankResult } from '@/types'
 import { topicsAtom, findTextInTopics, settingsAtom, type FillInputSession } from '@/store/atoms'
 import { buildBlankPad, parseText } from '@/lib/parser'
@@ -22,6 +23,7 @@ interface FillInputState {
 export function useFillInputEngine(textId: string | null) {
   const topics = useAtomValue(topicsAtom)
   const settings = useAtomValue(settingsAtom)
+  const { queueResult } = usePointsRecorder()
 
   const text = useMemo(() => {
     if (!textId) return null
@@ -102,6 +104,7 @@ export function useFillInputEngine(textId: string | null) {
           reason: r.reason,
         }
       })
+      queueResult(results.every((r) => r.correct))
       setState((prev) => ({
         ...prev,
         session: prev.session ? { ...prev.session, confirmed: true } : null,
@@ -112,7 +115,7 @@ export function useFillInputEngine(textId: string | null) {
       const msg = err instanceof Error ? err.message : String(err)
       setState((prev) => ({ ...prev, loading: false, error: msg }))
     }
-  }, [text, parsed, state.session, settings])
+  }, [text, parsed, state.session, settings, queueResult])
 
   const reset = useCallback(() => start(), [start])
 

@@ -1,5 +1,6 @@
 import { RouterProvider } from 'react-router-dom'
 import { router } from '@/routes'
+import { DailyStreakRepairDialog } from '@/components/DailyStreakRepairDialog'
 
 /**
  * 应用根组件
@@ -7,5 +8,10 @@ import { router } from '@/routes'
  * - Jotai Provider 在 main.tsx 中包裹
  */
 export default function App() {
-  return <RouterProvider router={router} />
+  return (
+    <>
+      <RouterProvider router={router} />
+      <DailyStreakRepairDialog />
+    </>
+  )
 }

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import type { PairItem, SentenceItem, Snapshot, TextItem, Topic } from '@/types'
+import type { PointsState } from '@/store/points'
+import type { DailyStreakState, DayLogs } from '@/lib/dailyStreak'
 import { uid } from './utils'
 
 /**
@@ -48,11 +50,37 @@ const topicSchema = z.object({
   sentences: z.array(sentenceSchema).default([]),
 })
 
-// 兼容旧版：topics 或 pairs+texts
+const pointsStateSchema = z.object({
+  points: z.number(),
+  streak: z.number(),
+  lastCorrectAt: z.number().nullable(),
+})
+
+const dailyStreakStateSchema = z.object({
+  todayCorrect: z.number(),
+  countDate: z.string().nullable(),
+})
+
+const dayLogSchema = z.object({
+  date: z.string(),
+  answered: z.boolean(),
+  completed: z.boolean(),
+  pointsSpent: z.number(),
+  repaired: z.boolean(),
+})
+
+// 旧版快照里的 streakDays/lastCompletedDate 字段会被 zod 自动忽略（strip）
+const dayLogsSchema = z.record(z.string(), dayLogSchema).optional()
+
+// 兼容旧版：topics 或 pairs+texts；points/dailyStreak/updatedAt 用于 WebDAV 同步
 const snapshotSchema = z.object({
   topics: z.array(topicSchema).optional(),
   pairs: z.array(pairSchema).optional(),
   texts: z.array(textSchema).optional(),
+  points: pointsStateSchema.optional(),
+  dailyStreak: dailyStreakStateSchema.optional(),
+  dayLogs: dayLogsSchema,
+  updatedAt: z.number().optional(),
 })
 
 export interface ParseResult {
@@ -101,11 +129,26 @@ export function parseSnapshot(input: unknown): ParseResult {
     ]
   }
 
-  return { ok: true, data: { topics } }
+  return {
+    ok: true,
+    data: {
+      topics,
+      points: r.points,
+      dailyStreak: r.dailyStreak,
+      dayLogs: r.dayLogs,
+      updatedAt: r.updatedAt,
+    },
+  }
 }
 
-/** 导出当前数据为快照 */
-export function buildSnapshot(topics: Topic[]): Snapshot {
+/** 导出当前数据为快照（points/dailyStreak/dayLogs/updatedAt 可选，用于 WebDAV 同步） */
+export function buildSnapshot(
+  topics: Topic[],
+  points?: PointsState,
+  dailyStreak?: DailyStreakState,
+  dayLogs?: DayLogs,
+  updatedAt?: number,
+): Snapshot {
   return {
     topics: topics.map((t) => ({
       id: t.id,
@@ -123,6 +166,10 @@ export function buildSnapshot(topics: Topic[]): Snapshot {
         words: s.words.slice(),
       })),
     })),
+    points,
+    dailyStreak,
+    dayLogs,
+    updatedAt,
   }
 }
 
@@ -205,5 +252,9 @@ export function ensureIds(snapshot: Snapshot): Snapshot {
         s.id ? s : { ...s, id: uid('sentence') },
       ) as SentenceItem[],
     })),
+    points: snapshot.points,
+    dailyStreak: snapshot.dailyStreak,
+    dayLogs: snapshot.dayLogs,
+    updatedAt: snapshot.updatedAt,
   }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
+import { usePointsRecorder } from '@/hooks/usePoints'
 import type { AssemblyOption, AssemblySession } from '@/types'
 import { topicsAtom, findSentenceInTopics } from '@/store/atoms'
 import { compareIgnorePunctuation } from '@/lib/sentence'
@@ -19,6 +20,7 @@ interface AssemblyState {
  */
 export function useSentenceAssemblyEngine(sentenceId: string | null) {
   const topics = useAtomValue(topicsAtom)
+  const { queueResult } = usePointsRecorder()
 
   const found = useMemo(() => {
     if (!sentenceId) return null
@@ -157,12 +159,13 @@ export function useSentenceAssemblyEngine(sentenceId: string | null) {
         .map((id) => prev.session!.options.find((o) => o.id === id)?.value ?? '')
         .join('')
       const correct = compareIgnorePunctuation(composed, sentence.answer)
+      queueResult(correct)
       return {
         session: { ...prev.session, confirmed: true },
         result: { correct },
       }
     })
-  }, [sentence])
+  }, [sentence, queueResult])
 
   const reset = useCallback(() => start(), [start])
 

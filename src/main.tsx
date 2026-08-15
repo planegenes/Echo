@@ -4,6 +4,9 @@ import { Provider as JotaiProvider } from 'jotai'
 import './index.css'
 import App from './App.tsx'
 import { appStore, loadPersistedData, topicsAtom, settingsAtom } from '@/store/atoms'
+import { pointsAtom } from '@/store/points'
+import { checkDailyStreakOnOpen, dailyStreakAtom, dayLogsAtom } from '@/store/dailyStreak'
+import { snapshotUpdatedAtAtom } from '@/store/sync'
 import { syncPull, scheduleSyncPush, isSyncing } from '@/lib/sync'
 import { isWebDAVConfigured } from '@/lib/webdav'
 
@@ -23,11 +26,19 @@ void loadPersistedData().finally(async () => {
     }
   }
 
-  // 订阅 topics 变化，防抖推送（跳过同步自身触发的变更）
-  appStore.sub(topicsAtom, () => {
+  // 订阅题库 / 积分 / 连胜 / 打卡日志变化，记录修改时间并防抖推送（跳过同步自身触发的变更）
+  const schedulePush = () => {
     if (isSyncing()) return
+    appStore.set(snapshotUpdatedAtAtom, Date.now())
     scheduleSyncPush()
-  })
+  }
+  appStore.sub(topicsAtom, schedulePush)
+  appStore.sub(pointsAtom, schedulePush)
+  appStore.sub(dailyStreakAtom, schedulePush)
+  appStore.sub(dayLogsAtom, schedulePush)
+
+  // 每日连胜启动检查（修复漏一天或重置已断连胜）
+  checkDailyStreakOnOpen(appStore)
 
   createRoot(rootEl).render(
     <StrictMode>
