@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   PointerSensor,
   TouchSensor,
   KeyboardSensor,
@@ -9,9 +10,13 @@ import {
   useSensors,
   useDroppable,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
+import {
+  SortableContext,
+  type SortingStrategy,
+} from '@dnd-kit/sortable'
 import { useFillSelectEngine } from '@/hooks/useFillSelectEngine'
 import { TextRenderer } from '@/components/TextRenderer'
 import { BlankSlot } from '@/components/BlankSlot'
@@ -20,6 +25,59 @@ import { FillResultPanel } from '@/components/FillResultPanel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+
+/**
+ * gap 感知的水平排序策略
+ * 与 horizontalListSortingStrategy 的区别：被挤开项的位移统一用
+ * 「拖动选项宽度 + 拖动选项与其相邻项的实际 gap」计算。
+ * 选项坍缩时用负 margin 抵消了与后一项的 gap（测量为 0），位移随之归零，
+ * 与实际布局一致；全宽时行为与 horizontalListSortingStrategy 相同。
+ */
+const gapAwareHorizontalStrategy: SortingStrategy = ({
+  rects,
+  activeIndex,
+  overIndex,
+  index,
+}) => {
+  if (activeIndex === overIndex) return null
+  const activeRect = rects[activeIndex]
+  if (!activeRect) return null
+
+  // 拖动项与其相邻项的实际 gap（坍缩抵消后为 0）
+  let gap = 0
+  if (activeIndex < index) {
+    const next = rects[activeIndex + 1]
+    if (next) gap = next.left - (activeRect.left + activeRect.width)
+  } else if (activeIndex > index) {
+    const prev = rects[activeIndex - 1]
+    if (prev) gap = activeRect.left - (prev.left + prev.width)
+  }
+
+  if (index === activeIndex) {
+    const overRect = rects[overIndex]
+    if (!overRect) return null
+    return {
+      x:
+        activeIndex < overIndex
+          ? overRect.left +
+            overRect.width -
+            activeRect.left -
+            activeRect.width
+          : overRect.left - activeRect.left,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+    }
+  }
+
+  if (index > activeIndex && index <= overIndex) {
+    return { x: -activeRect.width - gap, y: 0, scaleX: 1, scaleY: 1 }
+  }
+  if (index < activeIndex && index >= overIndex) {
+    return { x: activeRect.width + gap, y: 0, scaleX: 1, scaleY: 1 }
+  }
+  return { x: 0, y: 0, scaleX: 1, scaleY: 1 }
+}
 
 /**
  * 阻止浏览器默认 touchmove 行为（如 Android Edge 下拉刷新）。
@@ -49,6 +107,28 @@ export interface FillSelectGameProps {
 export function FillSelectGame({ textId }: FillSelectGameProps) {
   const engine = useFillSelectEngine(textId)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [isOverPool, setIsOverPool] = useState(false)
+  /** 选项区容器引用（用于几何相交判定，避免 over.id 边界抖动） */
+  const poolRef = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * 拖拽物当前位置是否与选项区矩形相交（稳定判定，不依赖 over.id）
+   * over 会在「选项区容器 / 子选项 / 空白槽」之间快速切换，用它做高亮会闪烁
+   */
+  const computeOverPool = useCallback(
+    (e: DragOverEvent | DragEndEvent): boolean => {
+      const poolRect = poolRef.current?.getBoundingClientRect()
+      const pos = e.active.rect.current.translated
+      if (!poolRect || !pos) return false
+      return (
+        pos.left < poolRect.right &&
+        pos.right > poolRect.left &&
+        pos.top < poolRect.bottom &&
+        pos.bottom > poolRect.top
+      )
+    },
+    [],
+  )
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -67,26 +147,36 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
 
   const onDragStart = (e: DragStartEvent) => {
     setActiveId(String(e.active.id))
+    // 拖动从选项区开始（slot 拖动不影响选项区占位）
+    setIsOverPool(true)
     // 锁定浏览器默认 touchmove（防止 Android Edge 下拉刷新拦截拖动）
     lockTouchMove()
   }
 
+  /** 拖动经过时用几何相交判断是否在选项区内（稳定、不闪烁） */
+  const onDragOver = (e: DragOverEvent) => {
+    setIsOverPool(computeOverPool(e))
+  }
+
   const onDragEnd = (e: DragEndEvent) => {
     setActiveId(null)
+    setIsOverPool(false)
     unlockTouchMove()
     const { active, over } = e
-    if (!over) return
-    const activeId = String(active.id)
-    const overId = String(over.id)
+    const activeIdStr = String(active.id)
+    const overId = over ? String(over.id) : ''
+    // 松手位置：几何判定（选项区内任意位置都算放回）或 over 指向 pool
+    const inPool = computeOverPool(e)
+    if (!over && !inPool) return
 
     // 从空白槽拖出（id 以 slot: 开头）
-    if (activeId.startsWith('slot:')) {
-      const blankId = activeId.slice('slot:'.length)
+    if (activeIdStr.startsWith('slot:')) {
+      const blankId = activeIdStr.slice('slot:'.length)
       const optionId = engine.session?.filled[blankId]
       if (!optionId) return
 
-      if (overId === 'pool') {
-        // 拖回候选区：清空原空白槽
+      if (overId === 'pool' || inPool) {
+        // 拖回候选区：清空原空白槽（悬停在选项上也视为放回）
         engine.clearBlank(blankId)
       } else if (overId.startsWith('blank:')) {
         const newBlankId = overId.slice('blank:'.length)
@@ -103,13 +193,13 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
     // 从候选区拖出（active.id 直接是 optionId，如 opt_xxx）
     if (overId.startsWith('blank:')) {
       const blankId = overId.slice('blank:'.length)
-      engine.fillBlank(blankId, activeId)
+      engine.fillBlank(blankId, activeIdStr)
       return
     }
 
-    // 候选区内排序：over 为另一个选项（非 pool、非 blank）
-    if (overId !== 'pool' && overId !== activeId) {
-      engine.reorderOptions(activeId, overId)
+    // 候选区内排序：over 为另一个选项（非 pool、非 active）
+    if (overId !== 'pool' && overId !== activeIdStr) {
+      engine.reorderOptions(activeIdStr, overId)
     }
   }
 
@@ -158,10 +248,19 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
       <CardContent className="space-y-4">
         <DndContext
           sensors={sensors}
+          // 每次 render 实时重测 droppable 尺寸：选项坍缩/展开（max-width 动画）时
+          // rect 快照与实际布局保持一致，排序位移才不会错位
+          measuring={{
+            droppable: {
+              strategy: MeasuringStrategy.Always,
+            },
+          }}
           onDragStart={onDragStart}
+          onDragOver={onDragOver}
           onDragEnd={onDragEnd}
           onDragCancel={() => {
             setActiveId(null)
+            setIsOverPool(false)
             unlockTouchMove()
           }}
         >
@@ -197,13 +296,21 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
             />
           </div>
 
-          <OptionsPool>
+          <OptionsPool
+            ref={poolRef}
+            isOverPool={isOverPool}
+            showDropHint={
+              activeId !== null &&
+              activeId.startsWith('slot:') &&
+              isOverPool
+            }
+          >
             <div className="mb-2 text-xs text-muted-foreground">
               选项区（可拖拽到空白、拖拽排序，或点击选项再点击空白）
             </div>
             <SortableContext
               items={unusedOptions.map((o) => o.id)}
-              strategy={rectSortingStrategy}
+              strategy={gapAwareHorizontalStrategy}
             >
               <div className="flex flex-wrap gap-2">
                 {unusedOptions.map((opt) => (
@@ -212,6 +319,7 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
                     optionId={opt.id}
                     value={opt.value}
                     selected={engine.selectedOptionId === opt.id}
+                    isOverPool={isOverPool}
                     onClick={() => {
                       if (engine.session!.confirmed) return
                       engine.selectOption(
@@ -254,18 +362,43 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
 
 /**
  * 候选区容器，作为 droppable（id='pool'）让用户可把已填入的选项拖回这里释放
+ * - 边框高亮由父组件的几何判定 isOverPool 驱动（稳定，不闪烁）
+ * - 从答题区拖回时显示虚线占位提示
  */
-function OptionsPool({ children }: { children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id: 'pool' })
+function OptionsPool({
+  children,
+  isOverPool,
+  showDropHint,
+  ref,
+}: {
+  children: React.ReactNode
+  isOverPool: boolean
+  showDropHint: boolean
+  ref?: React.Ref<HTMLDivElement>
+}) {
+  const { setNodeRef } = useDroppable({ id: 'pool' })
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node)
+      if (typeof ref === 'function') ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref, setNodeRef],
+  )
   return (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       className={cn(
         'rounded-lg border p-3 transition-colors',
-        isOver && 'border-primary bg-primary/5',
+        isOverPool && 'border-primary bg-primary/5',
       )}
     >
       {children}
+      {showDropHint && (
+        <div className="mt-3 flex items-center justify-center rounded-md border border-dashed border-primary/50 bg-primary/5 py-2.5 text-sm text-muted-foreground">
+          松开以放回选项区
+        </div>
+      )}
     </div>
   )
 }
