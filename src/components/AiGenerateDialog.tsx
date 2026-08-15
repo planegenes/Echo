@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { ContentRenderer } from '@/components/ContentRenderer'
+import { ContentListRenderer } from '@/components/ContentRenderer'
 import { parseText } from '@/lib/parser'
 import { generatePairs, generateSentences, generateTexts } from '@/lib/ai-generate'
 import { useSettingsValue } from '@/store/atoms'
@@ -260,7 +260,8 @@ function PairResultList({ pairs, onRemove, disabled }: PairResultListProps) {
       <ul className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
         {pairs.map((pair) => {
           const hasSpecialFormat =
-            pair.left.format !== 'text' || pair.right.format !== 'text'
+            pair.left.some((c) => c.format !== 'text') ||
+            pair.right.some((c) => c.format !== 'text')
           return (
             <li
               key={pair.id}
@@ -268,15 +269,16 @@ function PairResultList({ pairs, onRemove, disabled }: PairResultListProps) {
             >
               <div className="flex flex-1 items-center gap-2 min-w-0">
                 <span className="min-w-0 flex-1 truncate text-sm">
-                  <ContentRenderer content={pair.left} />
+                  <ContentListRenderer contents={pair.left} />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm">
-                  <ContentRenderer content={pair.right} />
+                  <ContentListRenderer contents={pair.right} />
                 </span>
               </div>
               {hasSpecialFormat && (
                 <Badge variant="outline" className="shrink-0">
-                  {pair.left.format === 'latex' || pair.right.format === 'latex'
+                  {pair.left.some((c) => c.format === 'latex') ||
+                  pair.right.some((c) => c.format === 'latex')
                     ? 'LaTeX'
                     : '注音'}
                 </Badge>
