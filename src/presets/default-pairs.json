@@ -1,218 +1,648 @@
 [
   {
     "id": "pair_capital_us",
-    "left": { "format": "text", "value": "美国" },
-    "right": { "format": "text", "value": "华盛顿" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "美国"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "华盛顿"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_fr",
-    "left": { "format": "text", "value": "法国" },
-    "right": { "format": "text", "value": "巴黎" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "法国"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "巴黎"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_jp",
-    "left": { "format": "text", "value": "日本" },
-    "right": { "format": "text", "value": "东京" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "日本"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "东京"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_uk",
-    "left": { "format": "text", "value": "英国" },
-    "right": { "format": "text", "value": "伦敦" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "英国"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "伦敦"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_it",
-    "left": { "format": "text", "value": "意大利" },
-    "right": { "format": "text", "value": "罗马" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "意大利"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "罗马"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_ru",
-    "left": { "format": "text", "value": "俄罗斯" },
-    "right": { "format": "text", "value": "莫斯科" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "俄罗斯"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "莫斯科"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_de",
-    "left": { "format": "text", "value": "德国" },
-    "right": { "format": "text", "value": "柏林" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "德国"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "柏林"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_cn",
-    "left": { "format": "text", "value": "中国" },
-    "right": { "format": "text", "value": "北京" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "中国"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "北京"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_ca",
-    "left": { "format": "text", "value": "加拿大" },
-    "right": { "format": "text", "value": "渥太华" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "加拿大"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "渥太华"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_capital_au",
-    "left": { "format": "text", "value": "澳大利亚" },
-    "right": { "format": "text", "value": "堪培拉" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "澳大利亚"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "堪培拉"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_en_hello",
-    "left": { "format": "text", "value": "你好" },
-    "right": { "format": "text", "value": "Hello" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "你好"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Hello"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_en_thanks",
-    "left": { "format": "text", "value": "谢谢" },
-    "right": { "format": "text", "value": "Thank you" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "谢谢"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Thank you"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_en_goodbye",
-    "left": { "format": "text", "value": "再见" },
-    "right": { "format": "text", "value": "Goodbye" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "再见"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Goodbye"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_en_morning",
-    "left": { "format": "text", "value": "早上好" },
-    "right": { "format": "text", "value": "Good morning" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "早上好"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Good morning"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_en_sorry",
-    "left": { "format": "text", "value": "对不起" },
-    "right": { "format": "text", "value": "Sorry" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "对不起"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Sorry"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_en_love",
-    "left": { "format": "text", "value": "我爱你" },
-    "right": { "format": "text", "value": "I love you" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "我爱你"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "I love you"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_en_friend",
-    "left": { "format": "text", "value": "朋友" },
-    "right": { "format": "text", "value": "Friend" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "朋友"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Friend"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_en_water",
-    "left": { "format": "text", "value": "水" },
-    "right": { "format": "text", "value": "Water" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "水"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Water"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_pythagorean",
-    "left": { "format": "text", "value": "勾股定理" },
-    "right": {
-      "format": "latex",
-      "value": "a^2 + b^2 = c^2"
-    },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "勾股定理"
+      }
+    ],
+    "right": [
+      {
+        "format": "latex",
+        "value": "a^2 + b^2 = c^2"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_quadratic_formula",
-    "left": { "format": "text", "value": "求根公式" },
-    "right": {
-      "format": "latex",
-      "value": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}"
-    },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "求根公式"
+      }
+    ],
+    "right": [
+      {
+        "format": "latex",
+        "value": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_area_circle",
-    "left": { "format": "text", "value": "圆面积公式" },
-    "right": { "format": "latex", "value": "S = \\pi r^2" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "圆面积公式"
+      }
+    ],
+    "right": [
+      {
+        "format": "latex",
+        "value": "S = \\pi r^2"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_derivative",
-    "left": { "format": "text", "value": "导数定义" },
-    "right": {
-      "format": "latex",
-      "value": "f'(x) = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}"
-    },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "导数定义"
+      }
+    ],
+    "right": [
+      {
+        "format": "latex",
+        "value": "f'(x) = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_euler_identity",
-    "left": { "format": "text", "value": "欧拉恒等式" },
-    "right": { "format": "latex", "value": "e^{i\\pi} + 1 = 0" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "欧拉恒等式"
+      }
+    ],
+    "right": [
+      {
+        "format": "latex",
+        "value": "e^{i\\pi} + 1 = 0"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_sin_squared",
-    "left": { "format": "text", "value": "三角恒等式" },
-    "right": {
-      "format": "latex",
-      "value": "\\sin^2 \\theta + \\cos^2 \\theta = 1"
-    },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "三角恒等式"
+      }
+    ],
+    "right": [
+      {
+        "format": "latex",
+        "value": "\\sin^2 \\theta + \\cos^2 \\theta = 1"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_chem_h",
-    "left": { "format": "text", "value": "氢" },
-    "right": { "format": "text", "value": "H" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "氢"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "H"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_chem_o",
-    "left": { "format": "text", "value": "氧" },
-    "right": { "format": "text", "value": "O" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "氧"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "O"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_chem_c",
-    "left": { "format": "text", "value": "碳" },
-    "right": { "format": "text", "value": "C" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "碳"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "C"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_chem_n",
-    "left": { "format": "text", "value": "氮" },
-    "right": { "format": "text", "value": "N" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "氮"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "N"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_chem_na",
-    "left": { "format": "text", "value": "钠" },
-    "right": { "format": "text", "value": "Na" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "钠"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Na"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_chem_fe",
-    "left": { "format": "text", "value": "铁" },
-    "right": { "format": "text", "value": "Fe" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "铁"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "Fe"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_dynasty_tang",
-    "left": { "format": "text", "value": "唐朝" },
-    "right": { "format": "text", "value": "618-907" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "唐朝"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "618-907"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_dynasty_song",
-    "left": { "format": "text", "value": "宋朝" },
-    "right": { "format": "text", "value": "960-1279" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "宋朝"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "960-1279"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_dynasty_ming",
-    "left": { "format": "text", "value": "明朝" },
-    "right": { "format": "text", "value": "1368-1644" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "明朝"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "1368-1644"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   },
   {
     "id": "pair_dynasty_qing",
-    "left": { "format": "text", "value": "清朝" },
-    "right": { "format": "text", "value": "1644-1912" },
-    "stats": { "lr": 0, "rl": 0 }
+    "left": [
+      {
+        "format": "text",
+        "value": "清朝"
+      }
+    ],
+    "right": [
+      {
+        "format": "text",
+        "value": "1644-1912"
+      }
+    ],
+    "stats": {
+      "lr": 0,
+      "rl": 0
+    }
   }
 ]

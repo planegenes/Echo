@@ -5,8 +5,8 @@ import { useLongPress } from '@/hooks/useLongPress'
 
 export interface MatchCardProps {
   content: Content
-  pairId: string
-  side: 'left' | 'right'
+  /** 卡片唯一 id */
+  cardId: string
   /** 当前选中（高亮） */
   selected: boolean
   /** 刚选对：变绿、pop 动画 */

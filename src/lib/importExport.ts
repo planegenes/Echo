@@ -22,10 +22,15 @@ const pairStatsSchema = z
   })
   .default({ lr: 0, rl: 0 })
 
+// 兼容旧版：left/right 可以是单个 Content 或 Content 数组，统一规范化为数组
+const contentArraySchema = z
+  .union([contentSchema, z.array(contentSchema)])
+  .transform((v) => (Array.isArray(v) ? v : [v]))
+
 const pairSchema = z.object({
   id: z.string().min(1),
-  left: contentSchema,
-  right: contentSchema,
+  left: contentArraySchema,
+  right: contentArraySchema,
   stats: pairStatsSchema,
 })
 

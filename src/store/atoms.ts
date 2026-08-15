@@ -2,6 +2,7 @@ import { atom, createStore, useAtomValue, useSetAtom } from 'jotai'
 import { atomWithDefault, atomWithStorage } from 'jotai/utils'
 import type {
   AppSettings,
+  Content,
   ContentFormat,
   PairItem,
   PairStats,
@@ -127,13 +128,23 @@ export const allSentencesAtom = atom((get) => {
 
 // ===== 会话状态：模式一（左右配对） =====
 
+/** 配对测验中的一张卡片（一个 pair 可拆成多张卡片） */
+export interface MatchCardRef {
+  /** 卡片唯一 id（如 `${pairId}::L0`） */
+  id: string
+  /** 所属 pair id（左右同 pairId 即匹配正确） */
+  pairId: string
+  /** 卡片内容 */
+  content: Content
+}
+
 export interface MatchSession {
   pairs: PairItem[]
-  leftOrder: string[]
-  rightOrder: string[]
+  leftCards: MatchCardRef[]
+  rightCards: MatchCardRef[]
   selectedLeft: string | null
   selectedRight: string | null
-  matchedIds: string[]
+  matchedPairIds: string[]
   lastPairIds: string[]
 }
 
@@ -144,11 +155,11 @@ export const matchSessionAtom = atom<MatchSession | null>(null)
 export interface ChoiceSession {
   pair: PairItem
   direction: 'askLeft' | 'askRight'
-  /** 展示的题目内容（left 或 right） */
+  /** 展示的题目内容（left 或 right 中的一项） */
   prompt: { format: ContentFormat; value: string }
-  /** 正确答案的 value */
-  answerValue: string
-  options: { id: string; value: string; format: ContentFormat }[]
+  /** 正确答案所属的 pair id（组内任意项均正确） */
+  answerPairId: string
+  options: { id: string; value: string; format: ContentFormat; pairId: string }[]
   selectedId: string | null
   resolved: 'idle' | 'correct' | 'revealed'
 }
@@ -191,6 +202,22 @@ export const currentTextAtom = atomWithDefault<TextItem | null>((get) => {
 })
 
 // ===== 初始化 =====
+
+/** 将旧版单个 Content 的 left/right 规范化为数组 */
+function toContentArray(v: unknown): Content[] {
+  return Array.isArray(v) ? (v as Content[]) : [v as Content]
+}
+
+function normalizePairArrays(topics: Topic[]): Topic[] {
+  return topics.map((t) => ({
+    ...t,
+    pairs: t.pairs.map((p) => ({
+      ...p,
+      left: toContentArray(p.left),
+      right: toContentArray(p.right),
+    })),
+  }))
+}
 
 /** 应用启动时从 IndexedDB 加载数据到 atom */
 export async function loadPersistedData(): Promise<void> {
@@ -323,6 +350,9 @@ export async function loadPersistedData(): Promise<void> {
     await dbPutTopic(sentencesEnTopic)
     topics = [...topics, sentencesZhTopic, sentencesYueTopic, sentencesEnTopic]
   }
+  // 数据结构升级：旧版 left/right 为单个 Content，规范化为数组
+  topics = normalizePairArrays(topics)
+
   storeSet(topicsAtom, topics)
 
   // 确保活动专题 id 指向有效专题

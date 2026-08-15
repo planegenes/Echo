@@ -24,8 +24,10 @@ export interface PairStats {
 
 export interface PairItem {
   id: string
-  left: Content
-  right: Content
+  /** 左侧内容（多项，组内任意一项与右侧任意一项都匹配） */
+  left: Content[]
+  /** 右侧内容（多项，组内任意一项与左侧任意一项都匹配） */
+  right: Content[]
   stats: PairStats
   /** 题目级 AI 模型覆盖（为空则使用 settings.defaultAiModel） */
   aiModel?: string

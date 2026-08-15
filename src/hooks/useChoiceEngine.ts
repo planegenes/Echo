@@ -1,44 +1,43 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAtomValue } from 'jotai'
+import { usePointsRecorder } from '@/hooks/usePoints'
 import type { Content, ContentFormat, PairItem } from '@/types'
 import { activeDeckAtom, persistPair, type ChoiceSession } from '@/store/atoms'
-import { clamp, randInt, sampleN, shuffle, uid } from '@/lib/utils'
+import { clamp, randInt, sample, sampleN, shuffle, uid } from '@/lib/utils'
 import type { ChoiceDirection } from '@/types'
 
 /**
- * 模式二：单选匹配（spec 5.2）
- * - 上方随机显示 pair 的 left 或 right
- * - 下方选项全部来自另一边
- * - 选项总数 6~10 随机，不超过题库大小
- * - askLeft 时用 lr 抽题，否则 rl
- * - 错误：对应方向 +1；正确：对应方向 -0.5（最低 0）
- * - 干扰项从其他 pair 的对边抽取，避免与正确答案重复
+ * 模式二：单选匹配（两侧为数组，组内叉乘匹配）
+ * - 上方随机显示 pair 一侧的一项
+ * - 下方选项来自另一边（正确项 + 其它 pair 的干扰项）
+ * - 判定：选项所属 pairId 与题目 pairId 相同即正确
  */
 
 interface ChoiceOption {
   id: string
   value: string
   format: ContentFormat
+  pairId: string
 }
 
 interface ChoiceEngineState {
   session: ChoiceSession | null
   score: number
   errors: number
-  /** 长按标记为无关的 option id（可解除熄灭，单击/长按可恢复） */
+  /** 长按标记为无关的 option id（可解除熄灭） */
   markedIrrelevantIds: string[]
   /** 答错后永久排除的 option id（不可解除熄灭） */
   eliminatedIds: string[]
   /** 刚答错的 option id（红色闪烁，随后转入 eliminatedIds） */
   justWrongId: string | null
-  /** 最近 3 题出现过的 pair id（用于间隔控制） */
+  /** 最近 3 题出现过的 pair id */
   recentPairIds: string[]
 }
 
 const MIN_DECK = 2
 /** 答对后自动进入下一题的延迟（毫秒） */
 const CORRECT_HOLD_MS = 800
-/** 答错后红色闪烁时长，随后转入不可解除熄灭（毫秒） */
+/** 答错后红色闪烁时长（毫秒） */
 const WRONG_HOLD_MS = 500
 /** 候选项（未熄灭）只剩该数量时停止答题并揭示答案 */
 const MIN_CANDIDATES = 4
@@ -50,12 +49,11 @@ function pickQuestion(
   pair: PairItem
   direction: ChoiceDirection
   prompt: Content
-  answer: Content
+  answerPairId: string
   options: ChoiceOption[]
 } | null {
   if (deck.length < MIN_DECK) return null
 
-  // 排除最近 3 题出现过的 pair（间隔 ≥ 3）
   const available = deck.filter((p) => !recentPairIds.includes(p.id))
   const pool = available.length >= MIN_DECK ? available : deck
 
@@ -65,41 +63,49 @@ function pickQuestion(
     return 1 + stat
   })
 
-  // 加权抽 1 个 pair
   const [pair] = weightedSampleN(pool, weights, 1)
   if (!pair) return null
 
-  const prompt = direction === 'askLeft' ? pair.left : pair.right
-  const answer = direction === 'askLeft' ? pair.right : pair.left
+  const promptSide = direction === 'askLeft' ? pair.left : pair.right
+  const answerSide = direction === 'askLeft' ? pair.right : pair.left
+  const promptItem = sample(promptSide)
+  const correctItem = sample(answerSide)
+  if (!promptItem || !correctItem) return null
 
-  // 干扰项：其他 pair 的对边
-  const distractorPool = deck
-    .filter((p) => p.id !== pair.id)
-    .map((p) => (direction === 'askLeft' ? p.right : p.left))
-
-  // 按 value 去重，并排除与正确答案相同的项
-  const dedup = new Map<string, Content>()
-  for (const c of distractorPool) {
-    if (c.value === answer.value) continue
-    if (!dedup.has(c.value)) dedup.set(c.value, c)
+  // 干扰项：其它 pair 的对边（拍平数组），按 value 去重
+  const distractorPool: { content: Content; pairId: string }[] = []
+  for (const p of deck) {
+    if (p.id === pair.id) continue
+    const side = direction === 'askLeft' ? p.right : p.left
+    for (const c of side) distractorPool.push({ content: c, pairId: p.id })
+  }
+  const dedup = new Map<string, { content: Content; pairId: string }>()
+  for (const d of distractorPool) {
+    if (d.content.value === correctItem.value) continue
+    if (!dedup.has(d.content.value)) dedup.set(d.content.value, d)
   }
   const uniqueDistractors = Array.from(dedup.values())
 
-  // 选项总数：6~10，但不超过题库大小；最少 2
   const total = Math.max(2, Math.min(randInt(6, 10), deck.length))
   const numDistractors = Math.min(uniqueDistractors.length, total - 1)
   const distractors = sampleN(uniqueDistractors, numDistractors)
 
   const options: ChoiceOption[] = shuffle([
-    { id: uid('opt'), value: answer.value, format: answer.format },
-    ...distractors.map((c) => ({
+    {
       id: uid('opt'),
-      value: c.value,
-      format: c.format,
+      value: correctItem.value,
+      format: correctItem.format,
+      pairId: pair.id,
+    },
+    ...distractors.map((d) => ({
+      id: uid('opt'),
+      value: d.content.value,
+      format: d.content.format,
+      pairId: d.pairId,
     })),
   ])
 
-  return { pair, direction, prompt, answer, options }
+  return { pair, direction, prompt: promptItem, answerPairId: pair.id, options }
 }
 
 function weightedSampleN<T>(items: T[], weights: number[], n: number): T[] {
@@ -126,6 +132,7 @@ function weightedSampleN<T>(items: T[], weights: number[], n: number): T[] {
 
 export function useChoiceEngine() {
   const deck = useAtomValue(activeDeckAtom)
+  const { queueResult } = usePointsRecorder()
 
   const [state, setState] = useState<ChoiceEngineState>({
     session: null,
@@ -156,7 +163,6 @@ export function useChoiceEngine() {
 
   const next = useCallback(() => {
     setState((prev) => {
-      // 更新最近 3 题的 pair id 记录
       const currentPairId = prev.session?.pair.id
       const recent = currentPairId
         ? [...prev.recentPairIds, currentPairId].slice(-3)
@@ -172,7 +178,7 @@ export function useChoiceEngine() {
           pair: q.pair,
           direction: q.direction,
           prompt: { format: q.prompt.format, value: q.prompt.value },
-          answerValue: q.answer.value,
+          answerPairId: q.answerPairId,
           options: q.options,
           selectedId: null,
           resolved: 'idle',
@@ -194,15 +200,13 @@ export function useChoiceEngine() {
     (optionId: string) => {
       setState((prev) => {
         if (!prev.session || prev.session.resolved !== 'idle') return prev
-        // 红色闪烁期间锁定
         if (prev.justWrongId) return prev
-        // 不可解除熄灭（已答错排除）不再可选
         if (prev.eliminatedIds.includes(optionId)) return prev
         const option = prev.session.options.find((o) => o.id === optionId)
         if (!option) return prev
-        const correct = option.value === prev.session.answerValue
+        // 组内叉乘：选项所属 pairId 与题目 pairId 一致即正确
+        const correct = option.pairId === prev.session.answerPairId
         const direction = prev.session.direction
-        // 更新 stats
         applyStats(
           prev.session.pair.id,
           direction,
@@ -211,12 +215,12 @@ export function useChoiceEngine() {
               ? clamp(cur - 0.5, 0, Number.POSITIVE_INFINITY)
               : cur + 1,
         )
-        // 若该选项处于可解除熄灭，单击即「解除熄灭并选中」
         const nextMarked = prev.markedIrrelevantIds.includes(optionId)
           ? prev.markedIrrelevantIds.filter((id) => id !== optionId)
           : prev.markedIrrelevantIds
 
         if (correct) {
+          queueResult(true)
           return {
             ...prev,
             session: { ...prev.session, selectedId: optionId, resolved: 'correct' },
@@ -224,6 +228,7 @@ export function useChoiceEngine() {
             markedIrrelevantIds: nextMarked,
           }
         }
+        queueResult(false)
         return {
           ...prev,
           session: { ...prev.session, selectedId: optionId },
@@ -233,16 +238,13 @@ export function useChoiceEngine() {
         }
       })
     },
-    [applyStats],
+    [applyStats, queueResult],
   )
 
-  /** 长按标记/取消标记为无关（可解除熄灭） */
   const toggleIrrelevant = useCallback((optionId: string) => {
     setState((prev) => {
       if (!prev.session || prev.session.resolved !== 'idle') return prev
-      // 红色闪烁期间锁定
       if (prev.justWrongId) return prev
-      // 不可解除熄灭不可再标记
       if (prev.eliminatedIds.includes(optionId)) return prev
       const exists = prev.markedIrrelevantIds.includes(optionId)
       const nextIds = exists
@@ -276,7 +278,7 @@ export function useChoiceEngine() {
     return () => clearTimeout(t)
   }, [state.justWrongId])
 
-  // 答对后 CORRECT_HOLD_MS 自动进入下一题
+  // 答对后自动进入下一题
   useEffect(() => {
     if (state.session?.resolved !== 'correct') return
     const t = setTimeout(() => {

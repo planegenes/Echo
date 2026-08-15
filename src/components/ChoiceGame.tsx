@@ -93,7 +93,7 @@ export function ChoiceGame() {
                 showCorrect={
                   (session.resolved === 'correct' ||
                     session.resolved === 'revealed') &&
-                  opt.value === session.answerValue
+                  opt.pairId === session.answerPairId
                 }
                 justWrong={engine.justWrongId === opt.id}
                 dimmed={isEliminated(opt.id) || isIrrelevant(opt.id)}

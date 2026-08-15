@@ -56,3 +56,23 @@ export function ContentRenderer({
     />
   )
 }
+
+/** 渲染一组 Content（用 · 分隔） */
+export function ContentListRenderer({
+  contents,
+  className,
+}: {
+  contents: Content[]
+  className?: string
+}) {
+  return (
+    <span className={className}>
+      {contents.map((c, i) => (
+        <span key={i}>
+          {i > 0 && <span className="opacity-50"> · </span>}
+          <ContentRenderer content={c} />
+        </span>
+      ))}
+    </span>
+  )
+}

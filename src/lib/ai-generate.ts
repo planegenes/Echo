@@ -184,8 +184,8 @@ export async function generatePairs(
       const format = normalizeFormat(p.format)
       return {
         id: uid('pair'),
-        left: { format, value: String(p.left) },
-        right: { format, value: String(p.right) },
+        left: [{ format, value: String(p.left) }],
+        right: [{ format, value: String(p.right) }],
         stats: { lr: 0, rl: 0 },
       } as PairItem
     })

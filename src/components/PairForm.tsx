@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ContentRenderer } from '@/components/ContentRenderer'
+import { Plus, Trash2 } from 'lucide-react'
 import { uid } from '@/lib/utils'
 
 export interface PairFormProps {
@@ -13,33 +14,54 @@ export interface PairFormProps {
   onCancel: () => void
 }
 
+function emptyContent(): Content {
+  return { format: 'text', value: '' }
+}
+
 const EMPTY: PairItem = {
   id: '',
-  left: { format: 'text', value: '' },
-  right: { format: 'text', value: '' },
+  left: [emptyContent()],
+  right: [emptyContent()],
   stats: { lr: 0, rl: 0 },
 }
 
 /**
- * 新增/编辑 pair 表单
+ * 新增/编辑 pair 表单（两侧为内容数组）
  */
 export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
   const [pair, setPair] = useState<PairItem>(initial ?? EMPTY)
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    setPair(initial ?? EMPTY)
-  }, [initial])
+  useEffect(() => setPair(initial ?? EMPTY), [initial])
 
-  const update = (side: 'left' | 'right', patch: Partial<Content>) => {
+  const updateItem = (
+    side: 'left' | 'right',
+    index: number,
+    patch: Partial<Content>,
+  ) => {
     setPair((p) => ({
       ...p,
-      [side]: { ...p[side], ...patch } as Content,
+      [side]: p[side].map((c, i) => (i === index ? { ...c, ...patch } : c)),
     }))
   }
 
-  const canSubmit =
-    pair.left.value.trim().length > 0 && pair.right.value.trim().length > 0
+  const addItem = (side: 'left' | 'right') => {
+    setPair((p) => ({ ...p, [side]: [...p[side], emptyContent()] }))
+  }
+
+  const removeItem = (side: 'left' | 'right', index: number) => {
+    setPair((p) => ({
+      ...p,
+      [side]:
+        p[side].length > 1
+          ? p[side].filter((_, i) => i !== index)
+          : [emptyContent()],
+    }))
+  }
+
+  const hasValue = (side: 'left' | 'right') =>
+    pair[side].some((c) => c.value.trim().length > 0)
+  const canSubmit = hasValue('left') && hasValue('right')
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -48,6 +70,8 @@ export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
       await onSubmit({
         ...pair,
         id: pair.id || uid('pair'),
+        left: pair.left.filter((c) => c.value.trim().length > 0),
+        right: pair.right.filter((c) => c.value.trim().length > 0),
         stats: pair.stats ?? { lr: 0, rl: 0 },
       })
     } finally {
@@ -58,15 +82,19 @@ export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid sm:grid-cols-2 gap-4">
-        <SideEditor
+        <SideListEditor
           label="左侧"
-          content={pair.left}
-          onChange={(patch) => update('left', patch)}
+          items={pair.left}
+          onUpdate={(i, patch) => updateItem('left', i, patch)}
+          onAdd={() => addItem('left')}
+          onRemove={(i) => removeItem('left', i)}
         />
-        <SideEditor
+        <SideListEditor
           label="右侧"
-          content={pair.right}
-          onChange={(patch) => update('right', patch)}
+          items={pair.right}
+          onUpdate={(i, patch) => updateItem('right', i, patch)}
+          onAdd={() => addItem('right')}
+          onRemove={(i) => removeItem('right', i)}
         />
       </div>
 
@@ -82,25 +110,76 @@ export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
   )
 }
 
-interface SideEditorProps {
+interface SideListEditorProps {
   label: string
-  content: Content
-  onChange: (patch: Partial<Content>) => void
+  items: Content[]
+  onUpdate: (index: number, patch: Partial<Content>) => void
+  onAdd: () => void
+  onRemove: (index: number) => void
 }
 
-function SideEditor({ label, content, onChange }: SideEditorProps) {
-  const isLatex = content.format === 'latex'
-  const isRuby = content.format === 'ruby'
+function SideListEditor({
+  label,
+  items,
+  onUpdate,
+  onAdd,
+  onRemove,
+}: SideListEditorProps) {
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-center justify-between">
         <Label>{label}</Label>
-        <div className="flex items-center gap-1 text-xs">
-          <FormatToggle
-            value={content.format}
-            onChange={(fmt) => onChange({ format: fmt })}
-          />
-        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onAdd}>
+          <Plus className="h-4 w-4" />
+          添加
+        </Button>
+      </div>
+      {items.map((content, index) => (
+        <ContentItemEditor
+          key={index}
+          content={content}
+          onChange={(patch) => onUpdate(index, patch)}
+          onRemove={() => onRemove(index)}
+          removable={items.length > 1}
+        />
+      ))}
+    </div>
+  )
+}
+
+interface ContentItemEditorProps {
+  content: Content
+  onChange: (patch: Partial<Content>) => void
+  onRemove: () => void
+  removable: boolean
+}
+
+function ContentItemEditor({
+  content,
+  onChange,
+  onRemove,
+  removable,
+}: ContentItemEditorProps) {
+  const isLatex = content.format === 'latex'
+  const isRuby = content.format === 'ruby'
+  return (
+    <div className="space-y-1.5 rounded-md bg-muted/30 p-2">
+      <div className="flex items-center justify-between">
+        <FormatToggle
+          value={content.format}
+          onChange={(fmt) => onChange({ format: fmt })}
+        />
+        {removable && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onRemove}
+            title="删除此项"
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        )}
       </div>
       {isLatex ? (
         <Textarea
@@ -113,7 +192,7 @@ function SideEditor({ label, content, onChange }: SideEditorProps) {
         <Textarea
           value={content.value}
           onChange={(e) => onChange({ value: e.target.value })}
-          placeholder="输入注音，例如 東^と 或 {東京}^{とうきょう}（多字符需加 {}）"
+          placeholder="输入注音，例如 東^と 或 {東京}^{とうきょう}"
           rows={2}
         />
       ) : (
@@ -123,13 +202,11 @@ function SideEditor({ label, content, onChange }: SideEditorProps) {
           placeholder="输入文本"
         />
       )}
-      <div className="rounded-md bg-muted/40 px-2 py-1.5 text-center text-sm min-h-[2rem] flex items-center justify-center">
-        {content.value ? (
+      {content.value && (
+        <div className="rounded-md bg-background px-2 py-1.5 text-center text-sm min-h-[2rem] flex items-center justify-center">
           <ContentRenderer content={content} />
-        ) : (
-          <span className="text-xs text-muted-foreground">预览</span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

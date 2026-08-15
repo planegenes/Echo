@@ -74,10 +74,7 @@ export function MatchGame() {
   }
 
   const { session } = engine
-  const lookup = (id: string) => session!.pairs.find((p) => p.id === id)!
   const { justMatchedId, justWrongIds, markedIrrelevantIds } = engine
-  const isIrrelevant = (id: string, side: 'left' | 'right') =>
-    markedIrrelevantIds.includes(`${id}:${side}`)
 
   return (
     <div className="space-y-4">
@@ -103,44 +100,36 @@ export function MatchGame() {
             className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-3 duration-300"
           >
             <div className="space-y-2">
-              {session.leftOrder.map((id) => {
-                const pair = lookup(id)
-                return (
-                  <MatchCard
-                    key={`L-${engine.roundKey}-${id}`}
-                    content={pair.left}
-                    pairId={id}
-                    side="left"
-                    selected={session.selectedLeft === id}
-                    justMatched={justMatchedId === id}
-                    justWrong={justWrongIds?.left === id}
-                    faded={!!justMatchedId && justMatchedId !== id}
-                    markedIrrelevant={isIrrelevant(id, 'left')}
-                    onLongPress={() => engine.toggleIrrelevant(id, 'left')}
-                    onClick={() => engine.selectLeft(id)}
-                  />
-                )
-              })}
+              {session.leftCards.map((card) => (
+                <MatchCard
+                  key={`L-${engine.roundKey}-${card.id}`}
+                  content={card.content}
+                  cardId={card.id}
+                  selected={session.selectedLeft === card.id}
+                  justMatched={justMatchedId === card.pairId}
+                  justWrong={justWrongIds?.left === card.id}
+                  faded={!!justMatchedId && justMatchedId !== card.pairId}
+                  markedIrrelevant={markedIrrelevantIds.includes(card.id)}
+                  onLongPress={() => engine.toggleIrrelevant(card.id)}
+                  onClick={() => engine.selectLeft(card.id)}
+                />
+              ))}
             </div>
             <div className="space-y-2">
-              {session.rightOrder.map((id) => {
-                const pair = lookup(id)
-                return (
-                  <MatchCard
-                    key={`R-${engine.roundKey}-${id}`}
-                    content={pair.right}
-                    pairId={id}
-                    side="right"
-                    selected={session.selectedRight === id}
-                    justMatched={justMatchedId === id}
-                    justWrong={justWrongIds?.right === id}
-                    faded={!!justMatchedId && justMatchedId !== id}
-                    markedIrrelevant={isIrrelevant(id, 'right')}
-                    onLongPress={() => engine.toggleIrrelevant(id, 'right')}
-                    onClick={() => engine.selectRight(id)}
-                  />
-                )
-              })}
+              {session.rightCards.map((card) => (
+                <MatchCard
+                  key={`R-${engine.roundKey}-${card.id}`}
+                  content={card.content}
+                  cardId={card.id}
+                  selected={session.selectedRight === card.id}
+                  justMatched={justMatchedId === card.pairId}
+                  justWrong={justWrongIds?.right === card.id}
+                  faded={!!justMatchedId && justMatchedId !== card.pairId}
+                  markedIrrelevant={markedIrrelevantIds.includes(card.id)}
+                  onLongPress={() => engine.toggleIrrelevant(card.id)}
+                  onClick={() => engine.selectRight(card.id)}
+                />
+              ))}
             </div>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">

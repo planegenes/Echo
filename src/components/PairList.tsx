@@ -3,7 +3,7 @@ import type { PairItem } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { ContentRenderer } from '@/components/ContentRenderer'
+import { ContentListRenderer } from '@/components/ContentRenderer'
 import { Plus, Pencil, Trash2, Search, RotateCcw, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -37,8 +37,8 @@ export function PairList({
     if (!q) return pairs
     return pairs.filter(
       (p) =>
-        p.left.value.toLowerCase().includes(q) ||
-        p.right.value.toLowerCase().includes(q),
+        p.left.some((c) => c.value.toLowerCase().includes(q)) ||
+        p.right.some((c) => c.value.toLowerCase().includes(q)),
     )
   }, [pairs, query])
 
@@ -90,17 +90,19 @@ export function PairList({
               >
                 <div className="flex flex-1 items-center gap-3 min-w-0">
                   <div className="flex-1 min-w-0 truncate">
-                    <ContentRenderer content={pair.left} />
+                    <ContentListRenderer contents={pair.left} />
                   </div>
                   <div className="flex-1 min-w-0 truncate">
-                    <ContentRenderer content={pair.right} />
+                    <ContentListRenderer contents={pair.right} />
                   </div>
                 </div>
 
-                {pair.left.format === 'latex' || pair.right.format === 'latex' ? (
+                {pair.left.some((c) => c.format === 'latex') ||
+                pair.right.some((c) => c.format === 'latex') ? (
                   <Badge variant="outline">LaTeX</Badge>
                 ) : null}
-                {pair.left.format === 'ruby' || pair.right.format === 'ruby' ? (
+                {pair.left.some((c) => c.format === 'ruby') ||
+                pair.right.some((c) => c.format === 'ruby') ? (
                   <Badge variant="outline">注音</Badge>
                 ) : null}
                 {totalErr > 0 && (
