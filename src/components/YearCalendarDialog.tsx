@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
+import { pointsAtom } from '@/store/points'
 import {
   DAILY_STREAK_REPAIR_COST,
   canRepairDate,
@@ -128,6 +129,10 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
           y={pendingRepair.y}
           date={pendingRepair.date}
           cost={repairCostFor(pendingRepair.date, today)}
+          canAfford={() =>
+            store.get(pointsAtom).points >=
+            repairCostFor(pendingRepair.date, today)
+          }
           onConfirm={confirmRepair}
           onCancel={() => setPendingRepair(null)}
         />

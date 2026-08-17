@@ -10,6 +10,8 @@ export interface RepairConfirmPopupProps {
   date: string
   /** 本次消耗积分（昨天 233 = 连胜激冻，更早 648 = 补签） */
   cost: number
+  /** 判断当前是否有足够积分支付本次操作（返回 true 可支付）；缺省视为可支付 */
+  canAfford?: () => boolean
   onConfirm: () => void
   onCancel: () => void
 }
@@ -17,6 +19,7 @@ export interface RepairConfirmPopupProps {
 /**
  * 连胜激冻 / 补签确认小弹窗（原地弹出，替代浏览器原生 confirm）
  * - 昨天（233 积分）为「连胜激冻」，更早历史日期（648 积分）为「补签」
+ * - 积分不足时禁用确认按钮并显示 not-allowed 光标
  * - 定位在点击位置上方，点击外部 / Esc 关闭
  */
 export function RepairConfirmPopup({
@@ -24,6 +27,7 @@ export function RepairConfirmPopup({
   y,
   date,
   cost,
+  canAfford,
   onConfirm,
   onCancel,
 }: RepairConfirmPopupProps) {
@@ -33,6 +37,7 @@ export function RepairConfirmPopup({
     label === '连胜激冻'
       ? `消耗 ${cost} 积分，使用连胜激冻保护连胜。`
       : `消耗 ${cost} 积分，补签后可以继续向前补签。`
+  const affordable = canAfford ? canAfford() : true
 
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -60,7 +65,13 @@ export function RepairConfirmPopup({
           <Button size="sm" variant="ghost" onClick={onCancel}>
             取消
           </Button>
-          <Button size="sm" onClick={onConfirm}>
+          <Button
+            size="sm"
+            onClick={onConfirm}
+            disabled={!affordable}
+            title={!affordable ? '积分不足' : undefined}
+            className={!affordable ? 'cursor-not-allowed' : undefined}
+          >
             确认{label}
           </Button>
         </div>

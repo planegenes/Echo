@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAtomValue, useStore } from 'jotai'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
+import { pointsAtom } from '@/store/points'
 import {
   DAILY_STREAK_REPAIR_COST,
   canRepairDate,
@@ -228,6 +229,10 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
           y={pendingRepair.y}
           date={pendingRepair.date}
           cost={repairCostFor(pendingRepair.date, today)}
+          canAfford={() =>
+            store.get(pointsAtom).points >=
+            repairCostFor(pendingRepair.date, today)
+          }
           onConfirm={confirmRepair}
           onCancel={() => setPendingRepair(null)}
         />
