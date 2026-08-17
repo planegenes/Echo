@@ -1,5 +1,5 @@
 import { ContentRenderer } from '@/components/ContentRenderer'
-import type { ContentFormat } from '@/types'
+import type { Content, ContentFormat } from '@/types'
 import { cn } from '@/lib/utils'
 import { useLongPress } from '@/hooks/useLongPress'
 
@@ -12,6 +12,8 @@ export interface ChoiceOptionProps {
   yellowCorrect?: boolean
   /** 刚答错（红色闪烁） */
   justWrong?: boolean
+  /** 答错时在该选项上方浮现的正确匹配内容 */
+  floatingMatch?: Content | null
   /** 处于熄灭状态（淡化 + 删除线） */
   dimmed?: boolean
   /** 熄灭是否可解除：true 时熄灭态下长按解除、单击解除并选中；false 时永久锁定 */
@@ -35,6 +37,7 @@ export function ChoiceOption({
   showCorrect,
   yellowCorrect,
   justWrong,
+  floatingMatch,
   dimmed,
   canUnDim,
   onLongPress,
@@ -65,7 +68,7 @@ export function ChoiceOption({
       disabled={trulyDisabled}
       aria-disabled={dimmed || undefined}
       className={cn(
-        'w-full min-h-[3rem] rounded-lg border px-4 py-2.5 text-center transition-all',
+        'relative w-full min-h-[3rem] rounded-lg border px-4 py-2.5 text-center transition-all',
         'flex items-center justify-center gap-2 text-sm font-medium',
         dimmed
           ? 'border-border bg-card opacity-40 text-muted-foreground line-through'
@@ -84,6 +87,13 @@ export function ChoiceOption({
         content={{ format, value }}
         className={dimmed ? 'line-through' : undefined}
       />
+      {/* 答错时在选项上方浮现该选项对应的正确匹配 */}
+      {justWrong && floatingMatch && (
+        <span className="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md border border-amber-400/60 bg-popover px-2 py-1 text-xs font-normal text-popover-foreground shadow-lg animate-in fade-in zoom-in-95">
+          <span className="text-muted-foreground">正确匹配：</span>
+          <ContentRenderer content={floatingMatch} />
+        </span>
+      )}
     </button>
   )
 }

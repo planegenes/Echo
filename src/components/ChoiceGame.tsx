@@ -84,13 +84,7 @@ export function ChoiceGame() {
             </div>
           </div>
 
-          {/* 选错时：在选项上方弹出该选项对应的正确匹配 */}
-          {engine.wrongMatch && (
-            <div className="flex items-center justify-center gap-2 rounded-md border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">正确匹配：</span>
-              <ContentRenderer content={engine.wrongMatch.content} />
-            </div>
-          )}
+          {/* 选错时：在该选项上方浮现对应正确匹配（由 ChoiceOption 渲染） */}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {session.options.map((opt) => (
@@ -105,6 +99,11 @@ export function ChoiceGame() {
                 }
                 yellowCorrect={session.gaveUp === true}
                 justWrong={engine.justWrongId === opt.id}
+                floatingMatch={
+                  engine.wrongMatch?.optionId === opt.id
+                    ? engine.wrongMatch.content
+                    : null
+                }
                 dimmed={isEliminated(opt.id) || isIrrelevant(opt.id)}
                 canUnDim={isIrrelevant(opt.id)}
                 onLongPress={() => engine.toggleIrrelevant(opt.id)}
