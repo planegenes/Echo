@@ -113,7 +113,8 @@ export function ChoiceGame() {
             ))}
           </div>
 
-          {!resolved && (
+          {/* 长按提示与「不会做」：答对（correct）时也保留区域，仅禁用按钮，避免卸载重挂闪烁 */}
+          {session.resolved !== 'revealed' && (
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
                 长按可标记无关选项，再次长按取消。
@@ -122,7 +123,7 @@ export function ChoiceGame() {
                 variant="outline"
                 size="sm"
                 onClick={() => engine.giveUp()}
-                disabled={engine.justWrongId !== null}
+                disabled={resolved || engine.justWrongId !== null}
                 title="不会做：所有未熄灭选项提高错误率权重，并揭示正确答案"
               >
                 <HelpCircle className="h-4 w-4" />

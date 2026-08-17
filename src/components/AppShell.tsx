@@ -141,26 +141,29 @@ export function AppShell({ children, title, extra }: AppShellProps) {
             })}
           </nav>
           {/* 连续答题（hover 弹出当月打卡日历，点击弹出年日历） */}
-          <div className="group relative">
-            <button
-              type="button"
-              onClick={() => setYearCalendarOpen(true)}
-              className="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm font-semibold tabular-nums transition-colors hover:bg-accent"
-              title={`连续答题 ${streakDays} 天 · 点击查看年打卡日历`}
-            >
-              <Flame
-                className={cn(
-                  'h-4 w-4',
-                  streakDays <= 0 && 'text-muted-foreground',
-                )}
-                style={
-                  streakDays > 0 ? { color: flameColor(streakDays) } : undefined
-                }
-              />
-              <span>{streakDays}</span>
-            </button>
-            <CalendarPopover />
-          </div>
+          <CalendarPopover
+            trigger={
+              <button
+                type="button"
+                onClick={() => setYearCalendarOpen(true)}
+                className="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm font-semibold tabular-nums transition-colors hover:bg-accent"
+                title={`连续答题 ${streakDays} 天 · 点击查看年打卡日历`}
+              >
+                <Flame
+                  className={cn(
+                    'h-4 w-4',
+                    streakDays <= 0 && 'text-muted-foreground',
+                  )}
+                  style={
+                    streakDays > 0
+                      ? { color: flameColor(streakDays) }
+                      : undefined
+                  }
+                />
+                <span>{streakDays}</span>
+              </button>
+            }
+          />
           <div
             className="flex items-center gap-1.5 text-sm font-semibold tabular-nums"
             title={`累计积分 ${points} · 连续答对 ${streak} 题`}
