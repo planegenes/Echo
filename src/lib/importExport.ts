@@ -59,6 +59,7 @@ const pointsStateSchema = z.object({
   points: z.number(),
   streak: z.number(),
   lastCorrectAt: z.number().nullable(),
+  wrongStreak: z.number().optional().default(0),
 })
 
 const dailyStreakStateSchema = z.object({

@@ -170,3 +170,10 @@
   100% { transform: scale(1); }
 }
 
+/* 光标位置积分浮动（上浮淡出） */
+@keyframes points-float {
+  0% { opacity: 0; transform: translate(-50%, 0); }
+  15% { opacity: 1; transform: translate(-50%, -10px); }
+  100% { opacity: 0; transform: translate(-50%, -48px); }
+}
+

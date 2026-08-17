@@ -2,6 +2,7 @@ import { RouterProvider } from 'react-router-dom'
 import { router } from '@/routes'
 import { DailyStreakRepairDialog } from '@/components/DailyStreakRepairDialog'
 import { PwaUpdatePrompt } from '@/components/PwaUpdatePrompt'
+import { PointsFloatLayer } from '@/components/PointsFloatLayer'
 
 /**
  * 应用根组件
@@ -14,6 +15,7 @@ export default function App() {
       <RouterProvider router={router} />
       <DailyStreakRepairDialog />
       <PwaUpdatePrompt />
+      <PointsFloatLayer />
     </>
   )
 }
