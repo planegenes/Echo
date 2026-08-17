@@ -3,12 +3,12 @@ import { useAtomValue, useStore } from 'jotai'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import {
-  DAILY_REPAIR_COST,
   canRepairDate,
   dayStatus,
   formatLocalDate,
   getMonthCalendar,
   getMonthStats,
+  repairCostFor,
 } from '@/lib/dailyStreak'
 import { cn } from '@/lib/utils'
 import { STATUS_LABEL, STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
@@ -107,8 +107,9 @@ export function CalendarPopover() {
           const status = dayStatus(cell.log)
           const isFuture = cell.date > today
           const repairable = !isFuture && canRepairDate(logs, cell.date, today)
+          const cost = repairCostFor(cell.date, today)
           const title = repairable
-            ? `${month} 月 ${cell.dayOfMonth} 日 · 未打卡，点击补签（-${DAILY_REPAIR_COST} 积分）`
+            ? `${month} 月 ${cell.dayOfMonth} 日 · 未打卡，点击连胜激冻（-${cost} 积分）`
             : status === 'none'
               ? `${month} 月 ${cell.dayOfMonth} 日`
               : `${month} 月 ${cell.dayOfMonth} 日 · ${
@@ -160,15 +161,16 @@ export function CalendarPopover() {
           </span>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          本月消耗积分 {stats.pointsSpent} · 补签 {DAILY_REPAIR_COST}/天
+          本月消耗积分 {stats.pointsSpent} · 连胜激冻 昨天 233 / 更早 648
         </p>
       </div>
-      {/* 补签确认弹窗 */}
+      {/* 连胜激冻确认弹窗 */}
       {pendingRepair && (
         <RepairConfirmPopup
           x={pendingRepair.x}
           y={pendingRepair.y}
           date={pendingRepair.date}
+          cost={repairCostFor(pendingRepair.date, today)}
           onConfirm={confirmRepair}
           onCancel={() => setPendingRepair(null)}
         />

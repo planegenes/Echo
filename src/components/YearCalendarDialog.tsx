@@ -7,11 +7,11 @@ import {
 } from '@/components/ui/dialog'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import {
-  DAILY_REPAIR_COST,
   canRepairDate,
   dayStatus,
   formatLocalDate,
   getMonthCalendar,
+  repairCostFor,
 } from '@/lib/dailyStreak'
 import { cn } from '@/lib/utils'
 import { STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
@@ -80,6 +80,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
                   const status = dayStatus(cell.log)
                   const isFuture = cell.date > today
                   const repairable = !isFuture && canRepairDate(logs, cell.date, today)
+                  const cost = repairCostFor(cell.date, today)
                   return (
                     <button
                       key={cell.date}
@@ -87,7 +88,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
                       disabled={!repairable}
                       title={
                         repairable
-                          ? `${mi + 1} 月 ${cell.dayOfMonth} 日 · 未打卡，点击补签（-${DAILY_REPAIR_COST} 积分）`
+                          ? `${mi + 1} 月 ${cell.dayOfMonth} 日 · 未打卡，点击连胜激冻（-${cost} 积分）`
                           : `${mi + 1} 月 ${cell.dayOfMonth} 日`
                       }
                       onClick={(e) => handleRepair(e, cell.date)}
@@ -109,16 +110,17 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
           ))}
         </div>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          虚线框日期为可补签日，点击消耗 {DAILY_REPAIR_COST} 积分补签，补签后可以继续向前补签。
+          虚线框日期为可连胜激冻日，点击消耗积分（昨天 233、更早 648）连胜激冻，激冻后可以继续向前。
         </p>
       </div>
 
-      {/* 补签确认弹窗 */}
+      {/* 连胜激冻确认弹窗 */}
       {pendingRepair && (
         <RepairConfirmPopup
           x={pendingRepair.x}
           y={pendingRepair.y}
           date={pendingRepair.date}
+          cost={repairCostFor(pendingRepair.date, today)}
           onConfirm={confirmRepair}
           onCancel={() => setPendingRepair(null)}
         />

@@ -12,8 +12,15 @@ export const DAILY_TARGET = 10
 /** 修复断签（漏一天）所需积分（启动时自动修复） */
 export const DAILY_STREAK_REPAIR_COST = 233
 
-/** 日历中手动补签一天所需积分 */
+/** 日历中手动补签一天所需积分（昨天之外的历史日期） */
 export const DAILY_REPAIR_COST = 648
+
+/** 手动连胜激冻某天的价格：昨天 233，更早的历史日期 648 */
+export function repairCostFor(date: string, todayStr: string): number {
+  return date === yesterdayStr(todayStr)
+    ? DAILY_STREAK_REPAIR_COST
+    : DAILY_REPAIR_COST
+}
 
 /** 每日进度标量（仅今日，用于顶栏实时展示） */
 export interface DailyStreakState {

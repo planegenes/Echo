@@ -1,13 +1,13 @@
 import { atom, createStore } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import {
-  DAILY_REPAIR_COST,
   DAILY_STREAK_REPAIR_COST,
   canRepairDate,
   dayBeforeYesterdayStr,
   deriveStreakDays,
   formatLocalDate,
   recordDailyCorrect,
+  repairCostFor,
   upsertDayLog,
   yesterdayStr,
   type DailyStreakState,
@@ -88,28 +88,29 @@ export function recordDailyCorrectToStore(store: JotaiStore, now: number): void 
 }
 
 /**
- * 日历中手动补签一天（点击月/年历上的可补签日期）
+ * 日历中手动连胜激冻一天（点击月/年历上的可补签日期）
  * - 仅当该日满足 canRepairDate（其后直到昨天都已打卡）时允许
- * - 消耗 DAILY_REPAIR_COST 积分，标记为「修复打卡」
- * - 返回是否成功
+ * - 消耗积分：昨天 233，更早 648（repairCostFor）
+ * - 标记为「修复打卡」，返回是否成功
  */
 export function repairDateOnCalendar(store: JotaiStore, date: string): boolean {
   const today = formatLocalDate()
   const logs = store.get(dayLogsAtom)
   if (!canRepairDate(logs, date, today)) return false
+  const cost = repairCostFor(date, today)
   const pts = store.get(pointsAtom)
-  if (pts.points < DAILY_REPAIR_COST) return false
+  if (pts.points < cost) return false
 
   store.set(pointsAtom, {
     ...pts,
-    points: pts.points - DAILY_REPAIR_COST,
+    points: pts.points - cost,
   })
   store.set(
     dayLogsAtom,
     upsertDayLog(logs, date, {
       completed: true,
       repaired: true,
-      pointsSpent: (logs[date]?.pointsSpent ?? 0) + DAILY_REPAIR_COST,
+      pointsSpent: (logs[date]?.pointsSpent ?? 0) + cost,
     }),
   )
   return true

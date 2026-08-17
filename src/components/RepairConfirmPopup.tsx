@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { DAILY_REPAIR_COST } from '@/lib/dailyStreak'
 
 export interface RepairConfirmPopupProps {
   /** 锚点坐标（点击格子的位置） */
@@ -8,18 +7,21 @@ export interface RepairConfirmPopupProps {
   y: number
   /** 待补签日期（YYYY-MM-DD） */
   date: string
+  /** 本次消耗积分（昨天 233，更早 648） */
+  cost: number
   onConfirm: () => void
   onCancel: () => void
 }
 
 /**
- * 补签确认小弹窗（原地弹出，替代浏览器原生 confirm）
+ * 连胜激冻确认小弹窗（原地弹出，替代浏览器原生 confirm）
  * - 定位在点击位置上方，点击外部 / Esc 关闭
  */
 export function RepairConfirmPopup({
   x,
   y,
   date,
+  cost,
   onConfirm,
   onCancel,
 }: RepairConfirmPopupProps) {
@@ -43,16 +45,16 @@ export function RepairConfirmPopup({
   return (
     <div ref={ref} className="fixed z-[100]" style={{ left: x, top: y }}>
       <div className="w-60 -translate-x-1/2 -translate-y-full rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg animate-in fade-in zoom-in-95">
-        <p className="text-sm font-medium">补签 {date}？</p>
+        <p className="text-sm font-medium">连胜激冻 {date}？</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          消耗 {DAILY_REPAIR_COST} 积分，补签后可以继续向前补签。
+          消耗 {cost} 积分，连胜激冻后可以继续向前连胜激冻。
         </p>
         <div className="mt-2.5 flex justify-end gap-2">
           <Button size="sm" variant="ghost" onClick={onCancel}>
             取消
           </Button>
           <Button size="sm" onClick={onConfirm}>
-            确认补签
+            确认激冻
           </Button>
         </div>
       </div>
