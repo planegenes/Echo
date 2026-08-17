@@ -375,6 +375,70 @@ export async function fetchAvailableModels(provider: AiProvider): Promise<string
     .filter((id): id is string => typeof id === 'string' && id.length > 0)
 }
 
+/**
+ * 解析 SSE（Server-Sent Events）流，提取文本增量并回调，返回完整文本
+ * - OpenAI 兼容：data: {"choices":[{"delta":{"content":"..."}}]}
+ * - Responses API：data: {"type":"response.output_text.delta","delta":"..."}
+ */
+export async function readSseStream(
+  res: Response,
+  format: AiApiFormat,
+  onDelta: (chunk: string) => void,
+): Promise<string> {
+  if (!res.body) {
+    throw new AiResponseError('AI 接口未返回流式响应')
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let full = ''
+
+  const consume = (chunk: string) => {
+    if (!chunk) return
+    full += chunk
+    onDelta(chunk)
+  }
+
+  const parseLine = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed.startsWith('data:')) return
+    const data = trimmed.slice(5).trim()
+    if (data === '[DONE]') return
+    try {
+      const obj = JSON.parse(data) as Record<string, unknown>
+      let chunk = ''
+      if (format === 'responses') {
+        if (
+          obj.type === 'response.output_text.delta' &&
+          typeof obj.delta === 'string'
+        ) {
+          chunk = obj.delta
+        }
+      } else {
+        const delta = (
+          obj as { choices?: Array<{ delta?: { content?: string } }> }
+        ).choices?.[0]?.delta?.content
+        if (typeof delta === 'string') chunk = delta
+      }
+      if (chunk) consume(chunk)
+    } catch {
+      // 忽略无法解析的行
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) parseLine(line)
+  }
+  // 处理末尾残留在 buffer 中、没有换行结尾的数据行
+  if (buffer.trim()) parseLine(buffer)
+  return full
+}
+
 /** 兼容旧调用签名：从 settings 中取默认供应商再获取模型列表 */
 export async function fetchAvailableModelsFromSettings(
   settings: AppSettings,

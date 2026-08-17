@@ -15,6 +15,7 @@ import {
   buildHeaders,
   extractContentByFormat,
   isAiConfigured,
+  readSseStream,
   resolveAiCall,
   type AiCallOptions,
 } from './ai'
@@ -52,7 +53,7 @@ const SENTENCES_SYSTEM =
   '生成的题目应当准确、有意义、避免重复。'
 
 export interface ChatMessage {
-  role: 'system' | 'user'
+  role: 'system' | 'user' | 'assistant'
   content: string
 }
 
@@ -61,18 +62,6 @@ export interface ChatPayload {
   messages: ChatMessage[]
   temperature: number
   response_format: { type: 'json_object' }
-}
-
-function buildPayload(system: string, userPrompt: string, model: string): ChatPayload {
-  return {
-    model: model || 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: `${userPrompt}\n\n严格按 JSON 结构返回。` },
-    ],
-    temperature: 0.7,
-    response_format: { type: 'json_object' },
-  }
 }
 
 /** 构造自定义 ChatPayload（供其它模块复用 callChat） */
@@ -165,18 +154,86 @@ function toResponsesPayload(payload: ChatPayload, model: string): unknown {
 }
 
 /**
+ * 流式 chat completion 调用
+ * - 与 callChat 相同的接口适配（OpenAI / Responses），额外开启 stream: true
+ * - 增量文本通过 onDelta 实时回调，返回完整文本
+ */
+export async function callChatStream(
+  settings: AppSettings,
+  payload: ChatPayload,
+  onDelta: (chunk: string) => void,
+  opts?: AiCallOptions,
+): Promise<string> {
+  if (!isAiConfigured(settings)) {
+    throw new AiConfigError('AI 接口未配置，请先到设置页添加供应商')
+  }
+
+  const { provider, model, config } = resolveAiCall(settings, opts)
+  const url = buildChatUrl(provider)
+  const baseBody = (
+    provider.apiFormat === 'responses'
+      ? toResponsesPayload(payload, model)
+      : { ...payload, model }
+  ) as Record<string, unknown>
+  const body = applyModelConfig(
+    provider,
+    model,
+    { ...baseBody, stream: true },
+    config,
+  )
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...buildHeaders(provider), Accept: 'text/event-stream' },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new AiResponseError(`AI 接口返回 ${res.status}: ${text.slice(0, 200)}`)
+  }
+
+  return readSseStream(res, provider.apiFormat, onDelta)
+}
+
+/**
+ * 以「system + 对话历史」构造 payload 并调用 AI（支持流式）
+ * @param messages 完整对话历史（不含 system），最后一条通常为本次 user 需求
+ */
+async function runGenerate(
+  settings: AppSettings,
+  system: string,
+  messages: ChatMessage[],
+  opts: AiCallOptions | undefined,
+  onStream: ((chunk: string) => void) | undefined,
+): Promise<string> {
+  const { model } = resolveAiCall(settings, opts)
+  const payload: ChatPayload = {
+    model,
+    messages: [{ role: 'system', content: system }, ...messages],
+    temperature: 0.7,
+    response_format: { type: 'json_object' },
+  }
+  if (onStream) {
+    return callChatStream(settings, payload, onStream, opts)
+  }
+  return callChat(settings, payload, opts)
+}
+
+/**
  * 生成配对题
  * @param settings AI 接口配置
- * @param userPrompt 用户需求描述
+ * @param messages 完整对话历史（不含 system），最后一条为本次需求；修改/重新生成时携带历史
  * @param opts 模型/供应商覆盖
+ * @param onStream 流式输出回调（可选，传入则走流式接口）
  */
 export async function generatePairs(
   settings: AppSettings,
-  userPrompt: string,
+  messages: ChatMessage[],
   opts?: AiCallOptions,
+  onStream?: (chunk: string) => void,
 ): Promise<PairItem[]> {
-  const { model } = resolveAiCall(settings, opts)
-  const content = await callChat(settings, buildPayload(PAIRS_SYSTEM, userPrompt, model), opts)
+  const content = await runGenerate(settings, PAIRS_SYSTEM, messages, opts, onStream)
   const obj = parseJsonObject(content)
   const pairs = obj.pairs
   if (!Array.isArray(pairs)) {
@@ -218,16 +275,17 @@ export async function generatePairs(
 /**
  * 生成填空题
  * @param settings AI 接口配置
- * @param userPrompt 用户需求描述
+ * @param messages 完整对话历史（不含 system），最后一条为本次需求；修改/重新生成时携带历史
  * @param opts 模型/供应商覆盖
+ * @param onStream 流式输出回调（可选，传入则走流式接口）
  */
 export async function generateTexts(
   settings: AppSettings,
-  userPrompt: string,
+  messages: ChatMessage[],
   opts?: AiCallOptions,
+  onStream?: (chunk: string) => void,
 ): Promise<TextItem[]> {
-  const { model } = resolveAiCall(settings, opts)
-  const content = await callChat(settings, buildPayload(TEXTS_SYSTEM, userPrompt, model), opts)
+  const content = await runGenerate(settings, TEXTS_SYSTEM, messages, opts, onStream)
   const obj = parseJsonObject(content)
   const texts = obj.texts
   if (!Array.isArray(texts)) {
@@ -250,16 +308,17 @@ export async function generateTexts(
  * 生成组句题
  * AI 同时完成"生成句子"与"分词"两件事
  * @param settings AI 接口配置
- * @param userPrompt 用户需求描述
+ * @param messages 完整对话历史（不含 system），最后一条为本次需求；修改/重新生成时携带历史
  * @param opts 模型/供应商覆盖
+ * @param onStream 流式输出回调（可选，传入则走流式接口）
  */
 export async function generateSentences(
   settings: AppSettings,
-  userPrompt: string,
+  messages: ChatMessage[],
   opts?: AiCallOptions,
+  onStream?: (chunk: string) => void,
 ): Promise<SentenceItem[]> {
-  const { model } = resolveAiCall(settings, opts)
-  const content = await callChat(settings, buildPayload(SENTENCES_SYSTEM, userPrompt, model), opts)
+  const content = await runGenerate(settings, SENTENCES_SYSTEM, messages, opts, onStream)
   const obj = parseJsonObject(content)
   const sentences = obj.sentences
   if (!Array.isArray(sentences)) {

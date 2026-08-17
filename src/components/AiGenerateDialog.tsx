@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PairItem, SentenceItem, TextItem, TopicType } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -13,10 +13,15 @@ import {
 } from '@/components/ui/dialog'
 import { ContentListRenderer } from '@/components/ContentRenderer'
 import { parseText } from '@/lib/parser'
-import { generatePairs, generateSentences, generateTexts } from '@/lib/ai-generate'
+import {
+  generatePairs,
+  generateSentences,
+  generateTexts,
+  type ChatMessage,
+} from '@/lib/ai-generate'
 import { useSettingsValue } from '@/store/atoms'
 import { isAiConfigured } from '@/lib/ai'
-import { Loader2, Sparkles, Trash2, Check } from 'lucide-react'
+import { Loader2, Sparkles, RefreshCw, Trash2, Check } from 'lucide-react'
 
 export interface AiGenerateDialogProps {
   open: boolean
@@ -47,9 +52,22 @@ export function AiGenerateDialog({
   const [texts, setTexts] = useState<TextItem[]>([])
   const [sentences, setSentences] = useState<SentenceItem[]>([])
   const [confirming, setConfirming] = useState(false)
+  /** 本轮对话历史（user/assistant 交替），用于「修改」携带上下文与「重新生成」 */
+  const [history, setHistory] = useState<ChatMessage[]>([])
+  /** 当前流式输出（生成过程中实时累积） */
+  const [streamText, setStreamText] = useState('')
+  const streamRef = useRef<HTMLPreElement | null>(null)
 
-  // 关闭时重置全部状态
+  // 流式输出自动滚动到底部
   useEffect(() => {
+    const el = streamRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [streamText])
+
+  // 关闭时重置全部状态（渲染期调整）
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
     if (!open) {
       setUserPrompt('')
       setError(null)
@@ -58,49 +76,81 @@ export function AiGenerateDialog({
       setSentences([])
       setLoading(false)
       setConfirming(false)
+      setHistory([])
+      setStreamText('')
     }
-  }, [open])
+  }
 
-  // 切换题目类型时重置结果
-  useEffect(() => {
+  // 切换题目类型时重置结果与历史（渲染期调整）
+  const [prevTopicType, setPrevTopicType] = useState(topicType)
+  if (prevTopicType !== topicType) {
+    setPrevTopicType(topicType)
     setPairs([])
     setTexts([])
     setSentences([])
     setError(null)
-  }, [topicType])
+    setHistory([])
+    setStreamText('')
+  }
 
-  const handleGenerate = async () => {
+  /**
+   * 生成 / 修改 / 重新生成
+   * - generate：历史为空时首次生成，历史为新 user 消息
+   * - modify：追加新 user 消息并携带完整历史
+   * - regenerate：移除最后一条 assistant，用剩余历史重新生成最近一次内容
+   */
+  const handleGenerate = async (mode: 'generate' | 'modify' | 'regenerate') => {
     const prompt = userPrompt.trim()
-    if (!prompt) {
-      setError('请输入需求描述')
-      return
-    }
     if (!aiReady) {
       setError('AI 接口未配置，请先到设置页填写 endpoint 与 api key')
       return
     }
+    if (mode !== 'regenerate' && !prompt) {
+      setError('请输入需求描述')
+      return
+    }
+
+    // 构造本次请求的消息历史
+    let messages: ChatMessage[]
+    let nextHistoryBase: ChatMessage[]
+    if (mode === 'regenerate') {
+      // 重新生成：去掉最后一条 assistant，以最后一条 user 重新调用
+      messages =
+        history.at(-1)?.role === 'assistant' ? history.slice(0, -1) : history
+      nextHistoryBase = messages
+    } else {
+      messages = [...history, { role: 'user', content: prompt }]
+      nextHistoryBase = messages
+    }
+    if (messages.length === 0) return
+
     setLoading(true)
     setError(null)
+    setStreamText('')
+    setPairs([])
+    setTexts([])
+    setSentences([])
     try {
+      let fullText = ''
+      const onStream = (chunk: string) => {
+        fullText += chunk
+        setStreamText(fullText)
+      }
       if (topicType === 'pairs') {
-        const result = await generatePairs(settings, prompt)
+        const result = await generatePairs(settings, messages, undefined, onStream)
         setPairs(result)
-        setTexts([])
-        setSentences([])
         if (result.length === 0) setError('AI 未返回有效配对')
       } else if (topicType === 'texts') {
-        const result = await generateTexts(settings, prompt)
+        const result = await generateTexts(settings, messages, undefined, onStream)
         setTexts(result)
-        setPairs([])
-        setSentences([])
         if (result.length === 0) setError('AI 未返回有效文本')
       } else {
-        const result = await generateSentences(settings, prompt)
+        const result = await generateSentences(settings, messages, undefined, onStream)
         setSentences(result)
-        setPairs([])
-        setTexts([])
         if (result.length === 0) setError('AI 未返回有效组句题')
       }
+      setHistory([...nextHistoryBase, { role: 'assistant', content: fullText }])
+      if (mode !== 'regenerate') setUserPrompt('')
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成失败')
     } finally {
@@ -182,9 +232,24 @@ export function AiGenerateDialog({
             placeholder={placeholder}
             disabled={busy}
           />
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {/* 有历史时才显示「重新生成」：基于当前对话重新生成最近一次内容 */}
+            {history.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => void handleGenerate('regenerate')}
+                disabled={busy || !aiReady}
+                title="基于当前对话重新生成最近一次结果"
+              >
+                <RefreshCw className="h-4 w-4" />
+                重新生成
+              </Button>
+            )}
+            {/* 无历史显示「生成」，有历史显示「修改」（携带对话历史） */}
             <Button
-              onClick={() => void handleGenerate()}
+              onClick={() =>
+                void handleGenerate(history.length > 0 ? 'modify' : 'generate')
+              }
               disabled={busy || !userPrompt.trim()}
             >
               {loading ? (
@@ -192,7 +257,7 @@ export function AiGenerateDialog({
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {loading ? '生成中...' : '生成'}
+              {loading ? '生成中...' : history.length > 0 ? '修改' : '生成'}
             </Button>
           </div>
         </div>
@@ -215,6 +280,27 @@ export function AiGenerateDialog({
             onRemove={handleRemoveSentence}
             disabled={busy}
           />
+        )}
+
+        {/* 流式输出：生成过程中实时显示 AI 输出，位于结果列表下方 */}
+        {streamText && (
+          <div className="rounded-md border bg-muted/20 px-3 py-2">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">AI 输出</span>
+              {loading && (
+                <span className="text-xs text-muted-foreground">
+                  <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
+                  实时生成中
+                </span>
+              )}
+            </div>
+            <pre
+              ref={streamRef}
+              className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words font-mono text-xs text-foreground/80"
+            >
+              {streamText}
+            </pre>
+          </div>
         )}
       </div>
 
