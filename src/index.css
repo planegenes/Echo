@@ -177,3 +177,9 @@
   100% { opacity: 0; transform: translate(-50%, -48px); }
 }
 
+/* PWA 更新不定进度条（条从左侧滑向右侧循环） */
+@keyframes update-progress {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
