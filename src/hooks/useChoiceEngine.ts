@@ -4,6 +4,7 @@ import { usePointsRecorder } from '@/hooks/usePoints'
 import type { Content, ContentFormat, PairItem } from '@/types'
 import { activeDeckAtom, persistPair, type ChoiceSession } from '@/store/atoms'
 import { clamp, randInt, sample, sampleN, shuffle, uid } from '@/lib/utils'
+import { nextWeight, sampleWeight } from '@/lib/weight'
 import type { ChoiceDirection } from '@/types'
 
 /**
@@ -30,6 +31,8 @@ interface ChoiceEngineState {
   eliminatedIds: string[]
   /** 刚答错的 option id（红色闪烁，随后转入 eliminatedIds） */
   justWrongId: string | null
+  /** 刚答错选项对应的正确匹配内容（在选项上方短暂弹出） */
+  wrongMatch: { optionId: string; content: Content } | null
   /** 最近 3 题出现过的 pair id */
   recentPairIds: string[]
 }
@@ -58,10 +61,7 @@ function pickQuestion(
   const pool = available.length >= MIN_DECK ? available : deck
 
   const direction: ChoiceDirection = Math.random() < 0.5 ? 'askLeft' : 'askRight'
-  const weights = pool.map((p) => {
-    const stat = direction === 'askLeft' ? p.stats?.lr ?? 0 : p.stats?.rl ?? 0
-    return 1 + stat
-  })
+  const weights = pool.map((p) => sampleWeight(p.stats))
 
   const [pair] = weightedSampleN(pool, weights, 1)
   if (!pair) return null
@@ -141,6 +141,7 @@ export function useChoiceEngine() {
     markedIrrelevantIds: [],
     eliminatedIds: [],
     justWrongId: null,
+    wrongMatch: null,
     recentPairIds: [],
   })
 
@@ -149,13 +150,17 @@ export function useChoiceEngine() {
       pairId: string,
       direction: ChoiceDirection,
       patch: (cur: number) => number,
+      correct?: boolean,
     ) => {
       const pair = deck.find((p) => p.id === pairId)
       if (!pair) return
       const key = direction === 'askLeft' ? 'lr' : 'rl'
       const cur = pair.stats?.[key] ?? 0
       const next = patch(cur)
-      const stats = { ...pair.stats, [key]: next } as PairItem['stats']
+      // 熟练度权重：正确 +1，错误 -2
+      const w =
+        correct === undefined ? (pair.stats?.w ?? 50) : nextWeight(pair.stats, correct)
+      const stats = { ...pair.stats, [key]: next, w } as PairItem['stats']
       void persistPair({ ...pair, stats })
     },
     [deck],
@@ -170,7 +175,7 @@ export function useChoiceEngine() {
 
       const q = pickQuestion(deck, recent)
       if (!q) {
-        return { ...prev, session: null, markedIrrelevantIds: [], eliminatedIds: [], justWrongId: null, recentPairIds: recent }
+        return { ...prev, session: null, markedIrrelevantIds: [], eliminatedIds: [], justWrongId: null, wrongMatch: null, recentPairIds: recent }
       }
       return {
         ...prev,
@@ -186,13 +191,14 @@ export function useChoiceEngine() {
         markedIrrelevantIds: [],
         eliminatedIds: [],
         justWrongId: null,
+        wrongMatch: null,
         recentPairIds: recent,
       }
     })
   }, [deck])
 
   const start = useCallback(() => {
-    setState({ session: null, score: 0, errors: 0, markedIrrelevantIds: [], eliminatedIds: [], justWrongId: null, recentPairIds: [] })
+    setState({ session: null, score: 0, errors: 0, markedIrrelevantIds: [], eliminatedIds: [], justWrongId: null, wrongMatch: null, recentPairIds: [] })
     next()
   }, [next])
 
@@ -214,6 +220,7 @@ export function useChoiceEngine() {
             correct
               ? clamp(cur - 0.5, 0, Number.POSITIVE_INFINITY)
               : cur + 1,
+          correct,
         )
         const nextMarked = prev.markedIrrelevantIds.includes(optionId)
           ? prev.markedIrrelevantIds.filter((id) => id !== optionId)
@@ -228,17 +235,25 @@ export function useChoiceEngine() {
             markedIrrelevantIds: nextMarked,
           }
         }
+        // 答错：记录该选项对应的正确匹配（其所属 pair 的对边内容），短暂弹出
         queueResult(false)
+        const wrongPair = deck.find((p) => p.id === option.pairId)
+        const matchSide =
+          direction === 'askLeft' ? wrongPair?.right : wrongPair?.left
+        const wrongMatch = matchSide ? sample(matchSide) ?? null : null
         return {
           ...prev,
           session: { ...prev.session, selectedId: optionId },
           errors: prev.errors + 1,
           justWrongId: optionId,
+          wrongMatch: wrongMatch
+            ? { optionId, content: wrongMatch }
+            : null,
           markedIrrelevantIds: nextMarked,
         }
       })
     },
-    [applyStats, queueResult],
+    [applyStats, queueResult, deck],
   )
 
   const toggleIrrelevant = useCallback((optionId: string) => {
@@ -271,12 +286,41 @@ export function useChoiceEngine() {
           eliminatedIds: eliminated,
           markedIrrelevantIds: marked,
           justWrongId: null,
+          wrongMatch: null,
           session: { ...prev.session, resolved },
         }
       })
     }, WRONG_HOLD_MS)
     return () => clearTimeout(t)
   }, [state.justWrongId])
+
+  /**
+   * 「不会做」：所有未熄灭的选项视为答错，调高其所属 pair 的错误率权重（答错惩罚），
+   * 黄色高亮正确答案并揭示本题
+   */
+  const giveUp = useCallback(() => {
+    setState((prev) => {
+      if (!prev.session || prev.session.resolved !== 'idle') return prev
+      if (prev.justWrongId) return prev
+      const activeOptions = prev.session.options.filter(
+        (o) =>
+          !prev.eliminatedIds.includes(o.id) &&
+          !prev.markedIrrelevantIds.includes(o.id),
+      )
+      // 每个未熄灭选项所属 pair 各记一次答错（去重）
+      const pairIds = [...new Set(activeOptions.map((o) => o.pairId))]
+      for (const pid of pairIds) {
+        const pair = deck.find((p) => p.id === pid)
+        if (!pair) continue
+        const w = nextWeight(pair.stats, false)
+        void persistPair({ ...pair, stats: { ...pair.stats, w } })
+      }
+      return {
+        ...prev,
+        session: { ...prev.session, resolved: 'revealed', gaveUp: true },
+      }
+    })
+  }, [deck])
 
   // 答对后自动进入下一题
   useEffect(() => {
@@ -298,9 +342,11 @@ export function useChoiceEngine() {
     markedIrrelevantIds: state.markedIrrelevantIds,
     eliminatedIds: state.eliminatedIds,
     justWrongId: state.justWrongId,
+    wrongMatch: state.wrongMatch,
     start,
     next,
     selectOption,
     toggleIrrelevant,
+    giveUp,
   }
 }

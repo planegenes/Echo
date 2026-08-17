@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ContentListRenderer } from '@/components/ContentRenderer'
-import { Plus, Pencil, Trash2, Search, RotateCcw, Sparkles } from 'lucide-react'
+import { isUnderperforming, pairWeight, weightDisplay } from '@/lib/weight'
+import { Plus, Pencil, Trash2, Search, RotateCcw, Sparkles, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface PairListProps {
@@ -14,6 +15,7 @@ export interface PairListProps {
   onDelete: (id: string) => void
   onResetStats: (id: string) => void
   onAiGenerate?: () => void
+  onAiEdit?: () => void
 }
 
 const PAGE_SIZE = 10
@@ -28,6 +30,7 @@ export function PairList({
   onDelete,
   onResetStats,
   onAiGenerate,
+  onAiEdit,
 }: PairListProps) {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
@@ -70,6 +73,12 @@ export function PairList({
             AI 生成
           </Button>
         )}
+        {onAiEdit && (
+          <Button variant="outline" onClick={onAiEdit}>
+            <Wand2 className="h-4 w-4" />
+            AI 修改
+          </Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -79,7 +88,8 @@ export function PairList({
       ) : (
         <ul className="space-y-1.5">
           {pageItems.map((pair) => {
-            const totalErr = (pair.stats?.lr ?? 0) + (pair.stats?.rl ?? 0)
+            const display = weightDisplay(pair.stats)
+            const under = isUnderperforming(pair.stats)
             return (
               <li
                 key={pair.id}
@@ -106,12 +116,16 @@ export function PairList({
                   pair.right.some((c) => c.format === 'ruby') ? (
                     <Badge variant="outline">注音</Badge>
                   ) : null}
-                  {totalErr > 0 && (
-                    <Badge variant="warning" title="累计错误权重">
-                      {totalErr}
+                  {/* 权重显示：低于均衡点显示错误率（warning），高于显示熟练度（success） */}
+                  {display && (
+                    <Badge
+                      variant={under ? 'warning' : 'success'}
+                      title={`权重 ${pairWeight(pair.stats)}`}
+                    >
+                      {display}
                     </Badge>
                   )}
-                  {totalErr > 0 && (
+                  {under && (
                     <Button
                       size="icon"
                       variant="ghost"

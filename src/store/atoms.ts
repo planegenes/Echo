@@ -162,6 +162,8 @@ export interface ChoiceSession {
   options: { id: string; value: string; format: ContentFormat; pairId: string }[]
   selectedId: string | null
   resolved: 'idle' | 'correct' | 'revealed'
+  /** 是否通过「不会做」揭示答案（正确答案黄色高亮） */
+  gaveUp?: boolean
 }
 
 export const choiceSessionAtom = atom<ChoiceSession | null>(null)
@@ -608,7 +610,7 @@ export async function resetPairStats(id: string): Promise<void> {
   if (!topic) return
   const pair = topic.pairs.find((p) => p.id === id)
   if (!pair) return
-  const next: PairItem = { ...pair, stats: { lr: 0, rl: 0 } as PairStats }
+  const next: PairItem = { ...pair, stats: { lr: 0, rl: 0, w: 50 } as PairStats }
   await persistPair(next)
 }
 

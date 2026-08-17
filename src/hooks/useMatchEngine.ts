@@ -9,6 +9,7 @@ import {
   type MatchSession,
 } from '@/store/atoms'
 import { clamp, shuffle } from '@/lib/utils'
+import { nextWeight, sampleWeight } from '@/lib/weight'
 
 /**
  * 模式一：左右配对（两侧为数组，组内叉乘匹配）
@@ -55,7 +56,7 @@ function pickRound(
   if (deck.length < ROUND_SIZE) return null
   const available = deck.filter((p) => !recentPairIds.includes(p.id))
   const pool = available.length >= ROUND_SIZE ? available : deck
-  const weights = pool.map((p) => 1 + (p.stats?.lr ?? 0) + (p.stats?.rl ?? 0))
+  const weights = pool.map((p) => sampleWeight(p.stats))
   return weightedSampleN(pool, weights, ROUND_SIZE)
 }
 
@@ -120,7 +121,7 @@ function pickRoundHard(
   if (deck.length < HARD_TOTAL) return null
   const available = deck.filter((p) => !recentPairIds.includes(p.id))
   const pool = available.length >= HARD_TOTAL ? available : deck
-  const weights = pool.map((p) => 1 + (p.stats?.lr ?? 0) + (p.stats?.rl ?? 0))
+  const weights = pool.map((p) => sampleWeight(p.stats))
   const picks = weightedSampleN(pool, weights, HARD_TOTAL)
   return {
     correct: picks[0],
@@ -181,12 +182,16 @@ export function useMatchEngine() {
     (
       pairId: string,
       patch: (cur: { lr: number; rl: number }) => { lr: number; rl: number },
+      correct?: boolean,
     ) => {
       const pair = deck.find((p) => p.id === pairId)
       if (!pair) return
       const cur = { lr: pair.stats?.lr ?? 0, rl: pair.stats?.rl ?? 0 }
       const next = patch(cur)
-      void persistPair({ ...pair, stats: next })
+      // 熟练度权重：正确 +1，错误 -2
+      const w =
+        correct === undefined ? (pair.stats?.w ?? 50) : nextWeight(pair.stats, correct)
+      void persistPair({ ...pair, stats: { ...next, w } })
     },
     [deck],
   )
@@ -313,10 +318,14 @@ export function useMatchEngine() {
         if (leftCard.pairId === rightCard.pairId) {
           // 正确：组内叉乘命中
           queueResult(true)
-          applyStats(leftCard.pairId, (cur) => ({
-            lr: clamp(cur.lr - 0.5, 0, Number.POSITIVE_INFINITY),
-            rl: clamp(cur.rl - 0.5, 0, Number.POSITIVE_INFINITY),
-          }))
+          applyStats(
+            leftCard.pairId,
+            (cur) => ({
+              lr: clamp(cur.lr - 0.5, 0, Number.POSITIVE_INFINITY),
+              rl: clamp(cur.rl - 0.5, 0, Number.POSITIVE_INFINITY),
+            }),
+            true,
+          )
           return {
             ...prev,
             session: {
@@ -332,9 +341,17 @@ export function useMatchEngine() {
 
         // 错误
         queueResult(false)
-        applyStats(leftCard.pairId, (cur) => ({ lr: cur.lr + 1, rl: cur.rl + 1 }))
+        applyStats(
+          leftCard.pairId,
+          (cur) => ({ lr: cur.lr + 1, rl: cur.rl + 1 }),
+          false,
+        )
         if (rightCard.pairId !== leftCard.pairId) {
-          applyStats(rightCard.pairId, (cur) => ({ lr: cur.lr + 1, rl: cur.rl + 1 }))
+          applyStats(
+            rightCard.pairId,
+            (cur) => ({ lr: cur.lr + 1, rl: cur.rl + 1 }),
+            false,
+          )
         }
         return {
           ...prev,

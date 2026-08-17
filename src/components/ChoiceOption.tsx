@@ -8,6 +8,8 @@ export interface ChoiceOptionProps {
   format: ContentFormat
   /** 高亮为正确答案（答对或揭示答案时） */
   showCorrect?: boolean
+  /** 是否用黄色高亮（「不会做」揭示时） */
+  yellowCorrect?: boolean
   /** 刚答错（红色闪烁） */
   justWrong?: boolean
   /** 处于熄灭状态（淡化 + 删除线） */
@@ -31,6 +33,7 @@ export function ChoiceOption({
   value,
   format,
   showCorrect,
+  yellowCorrect,
   justWrong,
   dimmed,
   canUnDim,
@@ -66,11 +69,13 @@ export function ChoiceOption({
         'flex items-center justify-center gap-2 text-sm font-medium',
         dimmed
           ? 'border-border bg-card opacity-40 text-muted-foreground line-through'
-          : showCorrect
-            ? 'border-success bg-success/15 text-success'
-            : justWrong
-              ? 'border-destructive bg-destructive/15 animate-[shake_0.3s_ease-in-out]'
-              : 'border-border bg-card hover:border-primary/40 hover:bg-accent/30',
+          : showCorrect && yellowCorrect
+            ? 'border-amber-400 bg-amber-400/20 text-amber-600 dark:text-amber-400'
+            : showCorrect
+              ? 'border-success bg-success/15 text-success'
+              : justWrong
+                ? 'border-destructive bg-destructive/15 animate-[shake_0.3s_ease-in-out]'
+                : 'border-border bg-card hover:border-primary/40 hover:bg-accent/30',
         trulyDisabled && 'cursor-not-allowed',
         dimmed && 'cursor-default',
       )}

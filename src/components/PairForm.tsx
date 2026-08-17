@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { Content, ContentFormat, PairItem } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ContentRenderer } from '@/components/ContentRenderer'
 import { Plus, Trash2 } from 'lucide-react'
 import { uid } from '@/lib/utils'
+import { DEFAULT_WEIGHT, clampWeight } from '@/lib/weight'
 
 export interface PairFormProps {
   initial?: PairItem | null
@@ -32,7 +33,12 @@ export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
   const [pair, setPair] = useState<PairItem>(initial ?? EMPTY)
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => setPair(initial ?? EMPTY), [initial])
+  // 外部 initial 变化时重置表单（渲染期调整）
+  const [prevInitial, setPrevInitial] = useState(initial)
+  if (prevInitial !== initial) {
+    setPrevInitial(initial)
+    setPair(initial ?? EMPTY)
+  }
 
   const updateItem = (
     side: 'left' | 'right',
@@ -67,12 +73,13 @@ export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
     if (!canSubmit) return
     setSubmitting(true)
     try {
+      const w = clampWeight(pair.stats?.w ?? DEFAULT_WEIGHT)
       await onSubmit({
         ...pair,
         id: pair.id || uid('pair'),
         left: pair.left.filter((c) => c.value.trim().length > 0),
         right: pair.right.filter((c) => c.value.trim().length > 0),
-        stats: pair.stats ?? { lr: 0, rl: 0 },
+        stats: { ...(pair.stats ?? { lr: 0, rl: 0 }), w },
       })
     } finally {
       setSubmitting(false)
@@ -96,6 +103,28 @@ export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
           onAdd={() => addItem('right')}
           onRemove={(i) => removeItem('right', i)}
         />
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">初始权重</span>
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            value={pair.stats?.w ?? DEFAULT_WEIGHT}
+            onChange={(e) =>
+              setPair((p) => ({
+                ...p,
+                stats: { ...(p.stats ?? { lr: 0, rl: 0 }), w: Number(e.target.value) },
+              }))
+            }
+            className="h-8 w-24"
+          />
+        </label>
+        <span className="text-xs text-muted-foreground">
+          默认 {DEFAULT_WEIGHT} · 答对 +1 · 答错 -2
+        </span>
       </div>
 
       <div className="flex justify-end gap-2">

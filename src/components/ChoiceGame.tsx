@@ -4,7 +4,7 @@ import { ChoiceOption } from '@/components/ChoiceOption'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ContentRenderer } from '@/components/ContentRenderer'
-import { ArrowRight, RefreshCw, Sparkles } from 'lucide-react'
+import { ArrowRight, RefreshCw, Sparkles, HelpCircle } from 'lucide-react'
 
 /**
  * 模式二主组件：单选匹配
@@ -84,6 +84,14 @@ export function ChoiceGame() {
             </div>
           </div>
 
+          {/* 选错时：在选项上方弹出该选项对应的正确匹配 */}
+          {engine.wrongMatch && (
+            <div className="flex items-center justify-center gap-2 rounded-md border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">正确匹配：</span>
+              <ContentRenderer content={engine.wrongMatch.content} />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {session.options.map((opt) => (
               <ChoiceOption
@@ -95,6 +103,7 @@ export function ChoiceGame() {
                     session.resolved === 'revealed') &&
                   opt.pairId === session.answerPairId
                 }
+                yellowCorrect={session.gaveUp === true}
                 justWrong={engine.justWrongId === opt.id}
                 dimmed={isEliminated(opt.id) || isIrrelevant(opt.id)}
                 canUnDim={isIrrelevant(opt.id)}
@@ -106,9 +115,21 @@ export function ChoiceGame() {
           </div>
 
           {!resolved && (
-            <p className="text-xs text-muted-foreground">
-              长按可标记无关选项，再次长按取消。
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                长按可标记无关选项，再次长按取消。
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => engine.giveUp()}
+                disabled={engine.justWrongId !== null}
+                title="不会做：所有未熄灭选项提高错误率权重，并揭示正确答案"
+              >
+                <HelpCircle className="h-4 w-4" />
+                不会做
+              </Button>
+            </div>
           )}
 
           {session.resolved === 'revealed' && (

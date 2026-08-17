@@ -20,6 +20,8 @@ export interface PairStats {
   lr: number
   /** 根据 right 选 left 的累计错误权重 */
   rl: number
+  /** 熟练度权重（0~100，默认 50）：答对 +1，答错 -2，越高越熟练、出题频率越低 */
+  w?: number
 }
 
 export interface PairItem {
