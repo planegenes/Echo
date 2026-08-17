@@ -45,7 +45,7 @@ export function RepairConfirmPopup({
       <div className="w-60 -translate-x-1/2 -translate-y-full rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg animate-in fade-in zoom-in-95">
         <p className="text-sm font-medium">补签 {date}？</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          消耗 {DAILY_REPAIR_COST} 积分，补签后前一天也可继续补签。
+          消耗 {DAILY_REPAIR_COST} 积分，补签后可以继续向前补签。
         </p>
         <div className="mt-2.5 flex justify-end gap-2">
           <Button size="sm" variant="ghost" onClick={onCancel}>

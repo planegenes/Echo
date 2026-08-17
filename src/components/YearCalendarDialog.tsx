@@ -25,7 +25,7 @@ export interface YearCalendarDialogProps {
 /**
  * 年打卡日历（点击顶栏连胜区域弹出）
  * - 12 个月按 4×3 排布，每月一个迷你月历
- * - 可补签的日期（其后直到昨天都已打卡）带虚线框，点击消耗积分补签，补签后前一天也可继续补签
+ * - 可补签的日期（其后直到昨天都已打卡）带虚线框，点击消耗积分补签，补签后可以继续向前补签
  */
 export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogProps) {
   const store = useStore()
@@ -109,7 +109,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
           ))}
         </div>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          虚线框日期为可补签日，点击消耗 {DAILY_REPAIR_COST} 积分补签，补签后可继续补签前一天。
+          虚线框日期为可补签日，点击消耗 {DAILY_REPAIR_COST} 积分补签，补签后可以继续向前补签。
         </p>
       </div>
 

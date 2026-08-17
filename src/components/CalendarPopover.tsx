@@ -18,7 +18,7 @@ import { RepairConfirmPopup } from '@/components/RepairConfirmPopup'
  * 顶栏连胜处 hover 弹出的当月打卡日历
  * - 绿色 = 完整打卡；蓝色 = 积分修复打卡；黄色 = 答题未完成；灰色 = 未答题
  * - 支持切换月份查看历史记录
- * - 可补签的日期（其后直到昨天都已打卡）带虚线框，点击消耗积分补签，补签后前一天也可继续补签
+ * - 可补签的日期（其后直到昨天都已打卡）带虚线框，点击消耗积分补签，补签后可以继续向前补签
  */
 export function CalendarPopover() {
   const store = useStore()
