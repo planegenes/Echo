@@ -3,6 +3,7 @@ import { useAtomValue, useStore } from 'jotai'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import {
+  DAILY_STREAK_REPAIR_COST,
   canRepairDate,
   dayStatus,
   formatLocalDate,
@@ -141,8 +142,9 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                 const repairable =
                   !isFuture && canRepairDate(logs, cell.date, today)
                 const cost = repairCostFor(cell.date, today)
+                const label = cost === DAILY_STREAK_REPAIR_COST ? '连胜激冻' : '补签'
                 const title = repairable
-                  ? `${month} 月 ${cell.dayOfMonth} 日 · 未打卡，点击连胜激冻（-${cost} 积分）`
+                  ? `${month} 月 ${cell.dayOfMonth} 日 · 未打卡，点击${label}（-${cost} 积分）`
                   : status === 'none'
                     ? `${month} 月 ${cell.dayOfMonth} 日`
                     : `${month} 月 ${cell.dayOfMonth} 日 · ${
@@ -164,7 +166,11 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                         'ring-2 ring-ring ring-offset-1 ring-offset-popover',
                       isFuture && 'opacity-40',
                       repairable &&
-                        'cursor-pointer ring-1 ring-dashed ring-ring hover:ring-2',
+                        'cursor-pointer ring-1 ring-dashed hover:ring-2',
+                      repairable &&
+                        (cost === DAILY_STREAK_REPAIR_COST
+                          ? 'ring-amber-400'
+                          : 'ring-sky-400'),
                     )}
                   >
                     {cell.dayOfMonth}
@@ -194,8 +200,18 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                 </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                本月消耗积分 {stats.pointsSpent} · 连胜激冻 昨天 233 / 更早 648
+                本月消耗积分 {stats.pointsSpent}
               </p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-dashed ring-amber-400" />
+                  连胜激冻 233
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-dashed ring-sky-400" />
+                  补签 648
+                </span>
+              </div>
             </div>
           </div>
         </div>

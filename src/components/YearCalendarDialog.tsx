@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import {
+  DAILY_STREAK_REPAIR_COST,
   canRepairDate,
   dayStatus,
   formatLocalDate,
@@ -81,6 +82,8 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
                   const isFuture = cell.date > today
                   const repairable = !isFuture && canRepairDate(logs, cell.date, today)
                   const cost = repairCostFor(cell.date, today)
+                  const label =
+                    cost === DAILY_STREAK_REPAIR_COST ? '连胜激冻' : '补签'
                   return (
                     <button
                       key={cell.date}
@@ -88,7 +91,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
                       disabled={!repairable}
                       title={
                         repairable
-                          ? `${mi + 1} 月 ${cell.dayOfMonth} 日 · 未打卡，点击连胜激冻（-${cost} 积分）`
+                          ? `${mi + 1} 月 ${cell.dayOfMonth} 日 · 未打卡，点击${label}（-${cost} 积分）`
                           : `${mi + 1} 月 ${cell.dayOfMonth} 日`
                       }
                       onClick={(e) => handleRepair(e, cell.date)}
@@ -98,7 +101,11 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
                         cell.isToday && 'ring-2 ring-ring',
                         isFuture && 'opacity-40',
                         repairable &&
-                          'cursor-pointer ring-1 ring-dashed ring-ring hover:ring-2',
+                          'cursor-pointer ring-1 ring-dashed hover:ring-2',
+                        repairable &&
+                          (cost === DAILY_STREAK_REPAIR_COST
+                            ? 'ring-amber-400'
+                            : 'ring-sky-400'),
                       )}
                     >
                       {cell.dayOfMonth}
@@ -110,7 +117,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
           ))}
         </div>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          虚线框日期为可连胜激冻日，点击消耗积分（昨天 233、更早 648）连胜激冻，激冻后可以继续向前。
+          虚线框日期为可操作日：琥珀色 = 连胜激冻（昨天，233 积分）、天蓝色 = 补签（更早，648 积分），操作后可以继续向前。
         </p>
       </div>
 
