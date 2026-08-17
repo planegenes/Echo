@@ -36,14 +36,14 @@ export function usePointsRecorder() {
     pendingRef.current = null
     setPoints((prev) => {
       if (!pending) {
-        // 答错：清零连续答对计数，累计连续答错（达到 5 题后开始扣分）
+        // 答错：清零连续答对计数，累计连续答错（达到 5 题后开始扣分，可为负数）
         const wrongStreak = prev.wrongStreak + 1
         const penalty = wrongPenalty(wrongStreak)
         return {
           ...prev,
           streak: 0,
           wrongStreak,
-          points: Math.max(0, prev.points - penalty),
+          points: prev.points - penalty,
         }
       }
       // 答对：按连续答对累加积分，并更新时间戳，重置连续答错计数
