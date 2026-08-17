@@ -189,8 +189,9 @@ export async function callChatStream(
   })
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new AiResponseError(`AI 接口返回 ${res.status}: ${text.slice(0, 200)}`)
+    // 部分服务端不支持 stream（或与 response_format 组合冲突）会拒绝请求，
+    // 此时降级为非流式调用重试，保证结果可用（仅失去实时性）
+    return callChat(settings, payload, opts)
   }
 
   return readSseStream(res, provider.apiFormat, onDelta)

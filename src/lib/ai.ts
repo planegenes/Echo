@@ -379,6 +379,8 @@ export async function fetchAvailableModels(provider: AiProvider): Promise<string
  * 解析 SSE（Server-Sent Events）流，提取文本增量并回调，返回完整文本
  * - OpenAI 兼容：data: {"choices":[{"delta":{"content":"..."}}]}
  * - Responses API：data: {"type":"response.output_text.delta","delta":"..."}
+ * - 部分服务端不支持流式（或忽略 stream 参数）时直接返回非流式 JSON，
+ *   此时兜底从完整响应中提取 content，保证结果可用（仅失去实时性）
  */
 export async function readSseStream(
   res: Response,
@@ -391,6 +393,7 @@ export async function readSseStream(
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let raw = ''
   let full = ''
 
   const consume = (chunk: string) => {
@@ -399,28 +402,37 @@ export async function readSseStream(
     onDelta(chunk)
   }
 
-  const parseLine = (raw: string) => {
-    const trimmed = raw.trim()
+  const extractDelta = (obj: Record<string, unknown>): string => {
+    if (format === 'responses') {
+      if (
+        obj.type === 'response.output_text.delta' &&
+        typeof obj.delta === 'string'
+      ) {
+        return obj.delta
+      }
+      return ''
+    }
+    // OpenAI 兼容：优先 delta.content（流式增量），兼容 message.content（chunk 合并）
+    const choice = (obj as { choices?: Array<unknown> }).choices?.[0]
+    if (!choice || typeof choice !== 'object') return ''
+    const c = choice as {
+      delta?: { content?: string }
+      message?: { content?: string }
+    }
+    return typeof c.delta?.content === 'string'
+      ? c.delta.content
+      : typeof c.message?.content === 'string'
+        ? c.message.content
+        : ''
+  }
+
+  const parseLine = (line: string) => {
+    const trimmed = line.trim()
     if (!trimmed.startsWith('data:')) return
     const data = trimmed.slice(5).trim()
     if (data === '[DONE]') return
     try {
-      const obj = JSON.parse(data) as Record<string, unknown>
-      let chunk = ''
-      if (format === 'responses') {
-        if (
-          obj.type === 'response.output_text.delta' &&
-          typeof obj.delta === 'string'
-        ) {
-          chunk = obj.delta
-        }
-      } else {
-        const delta = (
-          obj as { choices?: Array<{ delta?: { content?: string } }> }
-        ).choices?.[0]?.delta?.content
-        if (typeof delta === 'string') chunk = delta
-      }
-      if (chunk) consume(chunk)
+      consume(extractDelta(JSON.parse(data) as Record<string, unknown>))
     } catch {
       // 忽略无法解析的行
     }
@@ -429,13 +441,39 @@ export async function readSseStream(
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    buffer += decoder.decode(value, { stream: true })
+    const text = decoder.decode(value, { stream: true })
+    raw += text
+    buffer += text
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? ''
     for (const line of lines) parseLine(line)
   }
   // 处理末尾残留在 buffer 中、没有换行结尾的数据行
   if (buffer.trim()) parseLine(buffer)
+
+  // 兜底：流式未解析出任何内容时，尝试把完整响应当作非流式 JSON 解析
+  if (full === '' && raw.trim()) {
+    let jsonText = raw.trim()
+    // 若整体是 SSE 格式（data: 前缀 + 空行），剥离后取第一个 JSON 对象
+    const dataMatch = jsonText.match(/^data:\s*(\{[\s\S]*?\})\s*$/)
+    if (dataMatch) jsonText = dataMatch[1]
+    try {
+      const obj = JSON.parse(jsonText) as Record<string, unknown>
+      if (format === 'responses') {
+        const outputText = (obj as { output_text?: string }).output_text
+        if (typeof outputText === 'string' && outputText) return outputText
+      } else {
+        const choice = (obj as { choices?: Array<unknown> }).choices?.[0]
+        if (choice && typeof choice === 'object') {
+          const content = (choice as { message?: { content?: string } }).message
+            ?.content
+          if (typeof content === 'string' && content) return content
+        }
+      }
+    } catch {
+      // 兜底失败时返回已累积内容（可能为空）
+    }
+  }
   return full
 }
 
