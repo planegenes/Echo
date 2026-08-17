@@ -71,7 +71,10 @@ export function CalendarPopover() {
   }
 
   return (
-    <div className="invisible absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover p-3 text-popover-foreground opacity-0 shadow-lg transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+    <div className="invisible absolute right-0 top-full z-50 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+      {/* 透明桥：覆盖触发按钮到面板之间的间隙，保证移动时 hover 不中断 */}
+      <div className="h-2" />
+      <div className="w-72 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg">
       {/* 标题 + 月份切换 */}
       <div className="mb-2 flex items-center justify-between">
         <button
@@ -163,6 +166,7 @@ export function CalendarPopover() {
         <p className="mt-1 text-xs text-muted-foreground">
           本月消耗积分 {stats.pointsSpent} · 连胜激冻 昨天 233 / 更早 648
         </p>
+        </div>
       </div>
       {/* 连胜激冻确认弹窗 */}
       {pendingRepair && (
