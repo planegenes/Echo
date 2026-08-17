@@ -1,38 +1,26 @@
 import { useMemo, useState } from 'react'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useStore } from 'jotai'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { dayLogsAtom } from '@/store/dailyStreak'
+import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import {
+  DAILY_REPAIR_COST,
+  canRepairDate,
   dayStatus,
   formatLocalDate,
   getMonthCalendar,
   getMonthStats,
-  type DayStatus,
 } from '@/lib/dailyStreak'
 import { cn } from '@/lib/utils'
-
-const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
-
-const STATUS_STYLE: Record<DayStatus, string> = {
-  completed: 'bg-emerald-500 text-white',
-  repaired: 'bg-sky-500 text-white',
-  answered: 'bg-amber-400 text-white',
-  none: 'bg-muted text-muted-foreground',
-}
-
-const STATUS_LABEL: Record<DayStatus, string> = {
-  completed: '完整打卡',
-  repaired: '修复打卡',
-  answered: '答题未完成',
-  none: '未答题',
-}
+import { STATUS_LABEL, STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
 
 /**
  * 顶栏连胜处 hover 弹出的当月打卡日历
  * - 绿色 = 完整打卡；蓝色 = 积分修复打卡；黄色 = 答题未完成；灰色 = 未答题
  * - 支持切换月份查看历史记录
+ * - 可补签的日期（其后直到昨天都已打卡）带虚线框，点击消耗积分补签，补签后前一天也可继续补签
  */
 export function CalendarPopover() {
+  const store = useStore()
   const logs = useAtomValue(dayLogsAtom)
   const today = formatLocalDate()
   const now = new Date()
@@ -63,6 +51,15 @@ export function CalendarPopover() {
     } else {
       setMonth(month + 1)
     }
+  }
+
+  /** 点击可补签日期：确认后消耗积分补签 */
+  const handleRepair = (date: string) => {
+    const ok = window.confirm(
+      `消耗 ${DAILY_REPAIR_COST} 积分补签 ${date}？\n补签后前一天也可继续补签。`,
+    )
+    if (!ok) return
+    repairDateOnCalendar(store, date)
   }
 
   return (
@@ -101,8 +98,10 @@ export function CalendarPopover() {
           if (cell.dayOfMonth === 0) return <span key={`pad-${i}`} />
           const status = dayStatus(cell.log)
           const isFuture = cell.date > today
-          const title =
-            status === 'none'
+          const repairable = !isFuture && canRepairDate(logs, cell.date, today)
+          const title = repairable
+            ? `${month} 月 ${cell.dayOfMonth} 日 · 未打卡，点击补签（-${DAILY_REPAIR_COST} 积分）`
+            : status === 'none'
               ? `${month} 月 ${cell.dayOfMonth} 日`
               : `${month} 月 ${cell.dayOfMonth} 日 · ${
                   status === 'repaired'
@@ -110,19 +109,24 @@ export function CalendarPopover() {
                     : STATUS_LABEL[status]
                 }`
           return (
-            <span
+            <button
               key={cell.date}
+              type="button"
               title={title}
+              disabled={!repairable}
+              onClick={() => handleRepair(cell.date)}
               className={cn(
                 'flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium',
                 STATUS_STYLE[status],
                 cell.isToday &&
                   'ring-2 ring-ring ring-offset-1 ring-offset-popover',
                 isFuture && 'opacity-40',
+                repairable &&
+                  'cursor-pointer ring-1 ring-dashed ring-ring hover:ring-2',
               )}
             >
               {cell.dayOfMonth}
-            </span>
+            </button>
           )
         })}
       </div>
@@ -148,7 +152,7 @@ export function CalendarPopover() {
           </span>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          本月消耗积分 {stats.pointsSpent}
+          本月消耗积分 {stats.pointsSpent} · 补签 {DAILY_REPAIR_COST}/天
         </p>
       </div>
     </div>

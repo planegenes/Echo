@@ -8,6 +8,7 @@ import { useSettingsValue, useSetSettings } from '@/store/atoms'
 import { usePointsValue } from '@/hooks/usePoints'
 import { useDailyStreakValue } from '@/hooks/useDailyStreak'
 import { CalendarPopover } from '@/components/CalendarPopover'
+import { YearCalendarDialog } from '@/components/YearCalendarDialog'
 
 interface NavItem {
   to: string
@@ -55,6 +56,7 @@ export function AppShell({ children, title, extra }: AppShellProps) {
   const { points, streak } = usePointsValue()
   const { streakDays } = useDailyStreakValue()
   const location = useLocation()
+  const [yearCalendarOpen, setYearCalendarOpen] = React.useState(false)
 
   // 积分增减浮动提示
   const prevPointsRef = React.useRef(points)
@@ -138,11 +140,13 @@ export function AppShell({ children, title, extra }: AppShellProps) {
               )
             })}
           </nav>
-          {/* 连续答题（hover 弹出当月打卡日历） */}
+          {/* 连续答题（hover 弹出当月打卡日历，点击弹出年日历） */}
           <div className="group relative">
-            <div
-              className="flex items-center gap-1.5 text-sm font-semibold tabular-nums"
-              title={`连续答题 ${streakDays} 天`}
+            <button
+              type="button"
+              onClick={() => setYearCalendarOpen(true)}
+              className="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm font-semibold tabular-nums transition-colors hover:bg-accent"
+              title={`连续答题 ${streakDays} 天 · 点击查看年打卡日历`}
             >
               <Flame
                 className={cn(
@@ -154,7 +158,7 @@ export function AppShell({ children, title, extra }: AppShellProps) {
                 }
               />
               <span>{streakDays}</span>
-            </div>
+            </button>
             <CalendarPopover />
           </div>
           <div
@@ -227,6 +231,11 @@ export function AppShell({ children, title, extra }: AppShellProps) {
           {children}
         </div>
       </main>
+
+      <YearCalendarDialog
+        open={yearCalendarOpen}
+        onOpenChange={setYearCalendarOpen}
+      />
     </div>
   )
 }

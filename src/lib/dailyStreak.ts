@@ -9,8 +9,11 @@
 /** 单日完成所需答对题数 */
 export const DAILY_TARGET = 10
 
-/** 修复断签（漏一天）所需积分 */
-export const DAILY_STREAK_REPAIR_COST = 50
+/** 修复断签（漏一天）所需积分（启动时自动修复） */
+export const DAILY_STREAK_REPAIR_COST = 233
+
+/** 日历中手动补签一天所需积分 */
+export const DAILY_REPAIR_COST = 648
 
 /** 每日进度标量（仅今日，用于顶栏实时展示） */
 export interface DailyStreakState {
@@ -60,6 +63,13 @@ export function prevDate(dateStr: string): string {
   return formatLocalDate(d)
 }
 
+/** 某日期字符串的后一天 */
+export function nextDate(dateStr: string): string {
+  const d = parseLocalDate(dateStr)
+  d.setDate(d.getDate() + 1)
+  return formatLocalDate(d)
+}
+
 /** 昨天（相对 todayStr） */
 export function yesterdayStr(todayStr: string): string {
   return prevDate(todayStr)
@@ -68,6 +78,27 @@ export function yesterdayStr(todayStr: string): string {
 /** 前天（相对 todayStr） */
 export function dayBeforeYesterdayStr(todayStr: string): string {
   return prevDate(prevDate(todayStr))
+}
+
+/**
+ * 某日期是否可手动补签：
+ * - 必须是过去的日子（不含今天）且当天未完成打卡
+ * - 该日之后的所有日期（直到昨天）都必须已完成打卡——
+ *   即它是「从昨天往回数第一个未打卡日」，补签后前一天才可继续补签（递归）
+ */
+export function canRepairDate(
+  logs: DayLogs,
+  date: string,
+  todayStr: string,
+): boolean {
+  if (date >= todayStr) return false
+  if (logs[date]?.completed) return false
+  let cursor = nextDate(date)
+  while (cursor < todayStr) {
+    if (!logs[cursor]?.completed) return false
+    cursor = nextDate(cursor)
+  }
+  return true
 }
 
 /** 新建一条空白日志 */
