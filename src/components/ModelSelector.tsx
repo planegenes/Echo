@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AiProvider } from '@/types'
 import { Button } from '@/components/ui/button'
+import { Select, type SelectOption } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { fetchModelsGroupedByProvider } from '@/lib/ai'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -146,31 +147,28 @@ export function ModelSelector({
 
   return (
     <div className={cn('flex items-center gap-1', className)}>
-      <select
+      <Select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
+        placeholder={placeholder ?? '请选择模型'}
         disabled={disabled || loading}
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {allowEmpty && <option value="">{emptyLabel}</option>}
-        {!allowEmpty && !value && (
-          <option value="">{placeholder ?? '请选择模型'}</option>
-        )}
-        {hasModels ? (
-          mergedGroups.map((g) => (
-            <optgroup key={g.provider.id} label={g.provider.name}>
-              {g.models.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </optgroup>
-          ))
-        ) : (
-          // 无模型：仅显示占位，不展示无效的当前值
-          <option value="">{placeholder ?? '请选择模型'}</option>
-        )}
-      </select>
+        className="flex-1"
+        options={(() => {
+          const opts: SelectOption[] = []
+          // 允许空选项（题目级覆盖的「使用默认」）
+          if (allowEmpty) opts.push({ value: '', label: emptyLabel })
+          // 无模型且未选值时提供占位选项
+          else if (!hasModels && !value)
+            opts.push({ value: '', label: placeholder ?? '请选择模型' })
+          // 按供应商分组的模型列表
+          for (const g of mergedGroups) {
+            for (const m of g.models) {
+              opts.push({ value: m, label: m, group: g.provider.name })
+            }
+          }
+          return opts
+        })()}
+      />
       <Button
         type="button"
         variant="ghost"

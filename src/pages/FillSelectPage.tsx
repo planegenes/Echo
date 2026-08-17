@@ -4,6 +4,7 @@ import { AppShell } from '@/components/AppShell'
 import { FillSelectGame } from '@/components/FillSelectGame'
 import { TopicSelector } from '@/components/TopicSelector'
 import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import { useTexts } from '@/hooks/useTexts'
 import { countBlanks } from '@/lib/parser'
 
@@ -26,23 +27,21 @@ export default function FillSelectPage() {
         {!urlTextId && (
           <div className="space-y-1.5">
             <Label htmlFor="text-picker">选择文本</Label>
-            <select
-              id="text-picker"
+            <Select
               value={effectiveId ?? ''}
-              onChange={(e) => setSelectedId(e.target.value || null)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              <option value="">请选择...</option>
-              {textsApi.texts.map((t) => {
-                const blankCount = countBlanks(t.content)
-                return (
-                  <option key={t.id} value={t.id} disabled={blankCount === 0}>
-                    {t.content.slice(0, 30)}
-                    {t.content.length > 30 ? '...' : ''}（{blankCount} 空白）
-                  </option>
-                )
-              })}
-            </select>
+              onChange={(v) => setSelectedId(v || null)}
+              placeholder="请选择..."
+              options={[
+                ...textsApi.texts.map((t) => {
+                  const blankCount = countBlanks(t.content)
+                  return {
+                    value: t.id,
+                    disabled: blankCount === 0,
+                    label: `${t.content.slice(0, 30)}${t.content.length > 30 ? '...' : ''}（${blankCount} 空白）`,
+                  }
+                }),
+              ]}
+            />
           </div>
         )}
 

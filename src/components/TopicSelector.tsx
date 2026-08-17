@@ -1,5 +1,5 @@
 import { useTopics } from '@/hooks/useTopics'
-import { cn } from '@/lib/utils'
+import { Select } from '@/components/ui/select'
 import type { TopicType } from '@/types'
 
 /**
@@ -42,19 +42,12 @@ export function TopicSelector({
         : setActiveSentencesTopicId
 
   return (
-    <select
+    <Select
       value={activeId ?? ''}
-      onChange={(e) => setActive(e.target.value || null)}
-      className={cn(
-        'rounded-md border bg-background px-3 py-1.5 text-sm',
-        className,
-      )}
-    >
-      {filtered.map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.name}
-        </option>
-      ))}
-    </select>
+      onChange={(v) => setActive(v || null)}
+      options={filtered.map((t) => ({ value: t.id, label: t.name }))}
+      placeholder="选择专题"
+      className={className}
+    />
   )
 }
