@@ -25,7 +25,6 @@ function mkLog(date: string, patch: Partial<DayLog> = {}): DayLog {
     answered: false,
     completed: false,
     pointsSpent: 0,
-    repaired: false,
     ...patch,
   }
 }
@@ -88,14 +87,29 @@ describe('upsertDayLog', () => {
 })
 
 describe('dayStatus', () => {
-  it('状态优先级：完成 > 答题 > 无；修复/补签不单独区分', () => {
+  it('状态优先级：激冻/补签 > 完成 > 答题 > 无', () => {
     expect(dayStatus(undefined)).toBe('none')
     expect(dayStatus(mkLog('2024-01-15', { answered: true }))).toBe('answered')
     expect(dayStatus(mkLog('2024-01-15', { completed: true }))).toBe('completed')
-    // 修复/补签过的日子同样显示为完整打卡
     expect(
-      dayStatus(mkLog('2024-01-15', { completed: true, repaired: true })),
-    ).toBe('completed')
+      dayStatus(mkLog('2024-01-15', { completed: true, repairType: 'freeze' })),
+    ).toBe('freeze')
+    expect(
+      dayStatus(mkLog('2024-01-15', { completed: true, repairType: 'repair' })),
+    ).toBe('repair')
+    // 旧数据兼容：repaired=true 无 repairType，按 pointsSpent 推断
+    const legacy = {
+      completed: true,
+      pointsSpent: 233,
+      repaired: true,
+    } as unknown as DayLog
+    expect(dayStatus(legacy)).toBe('freeze')
+    const legacy2 = {
+      completed: true,
+      pointsSpent: 648,
+      repaired: true,
+    } as unknown as DayLog
+    expect(dayStatus(legacy2)).toBe('repair')
   })
 })
 
@@ -138,13 +152,13 @@ describe('deriveStreakDays', () => {
     expect(deriveStreakDays(logs, '2024-01-15')).toBe(0)
   })
 
-  it('修复打卡（completed + repaired）同样计入连胜', () => {
+  it('激冻/补签打卡（completed + repairType）同样计入连胜', () => {
     const logs: DayLogs = {
       ...done('2024-01-14'),
       '2024-01-15': mkLog('2024-01-15', {
         completed: true,
-        repaired: true,
-        pointsSpent: 50,
+        repairType: 'freeze',
+        pointsSpent: 233,
       }),
     }
     expect(deriveStreakDays(logs, '2024-01-15')).toBe(2)
@@ -160,17 +174,18 @@ describe('getMonthStats', () => {
       }),
       '2024-01-02': mkLog('2024-01-02', {
         completed: true,
-        repaired: true,
-        pointsSpent: 50,
+        repairType: 'freeze',
+        pointsSpent: 233,
       }),
       '2024-01-03': mkLog('2024-01-03', { answered: true }),
     }
     // 2024-01-15 是今天：1~14 为过去，15 为今天，16~31 为未来
     const stats = getMonthStats(logs, 2024, 1, '2024-01-15')
     expect(stats.completedDays).toBe(2)
-    expect(stats.repairedDays).toBe(1)
+    expect(stats.freezeDays).toBe(1)
+    expect(stats.repairDays).toBe(0)
     expect(stats.answeredOnlyDays).toBe(1)
-    expect(stats.pointsSpent).toBe(50)
+    expect(stats.pointsSpent).toBe(233)
     // 过去 14 天中 3 天有记录 → 11 天未答题（今天 15 不算 missed）
     expect(stats.missedDays).toBe(11)
   })

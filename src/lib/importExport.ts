@@ -72,7 +72,9 @@ const dayLogSchema = z.object({
   answered: z.boolean(),
   completed: z.boolean(),
   pointsSpent: z.number(),
-  repaired: z.boolean(),
+  repairType: z.enum(['freeze', 'repair']).optional(),
+  // 兼容旧版快照：repaired 字段不再写入，仅解析时忽略
+  repaired: z.boolean().optional(),
 })
 
 // 旧版快照里的 streakDays/lastCompletedDate 字段会被 zod 自动忽略（strip）

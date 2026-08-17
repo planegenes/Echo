@@ -47,7 +47,7 @@ interface LegacyDailyStreak {
 
 /**
  * 迁移旧版数据：把 lastCompletedDate 落成一条「正常打卡」日志。
- * 旧版无法区分是否修复过，因此 migrated 记录 repaired 一律为 false。
+ * 旧版无法区分是否修复过，因此 migrated 记录 repairType 缺省（正常打卡）。
  */
 function migrateLegacyStreak(store: JotaiStore): void {
   const legacy = store.get(dailyStreakAtom) as unknown as LegacyDailyStreak
@@ -109,7 +109,8 @@ export function repairDateOnCalendar(store: JotaiStore, date: string): boolean {
     dayLogsAtom,
     upsertDayLog(logs, date, {
       completed: true,
-      repaired: true,
+      // 昨天 = 连胜激冻，更早 = 补签
+      repairType: date === yesterdayStr(today) ? 'freeze' : 'repair',
       pointsSpent: (logs[date]?.pointsSpent ?? 0) + cost,
     }),
   )
@@ -143,7 +144,7 @@ export function checkDailyStreakOnOpen(store: JotaiStore): void {
       })
       logs = upsertDayLog(logs, yesterday, {
         completed: true,
-        repaired: true,
+        repairType: 'freeze',
         pointsSpent:
           (logs[yesterday]?.pointsSpent ?? 0) + DAILY_STREAK_REPAIR_COST,
       })

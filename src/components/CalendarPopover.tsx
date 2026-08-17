@@ -22,7 +22,7 @@ export interface CalendarPopoverProps {
 
 /**
  * 顶栏连胜处 hover 弹出的当月打卡日历
- * - 绿色 = 完整打卡（含修复/补签）；黄色 = 答题未完成；灰色 = 未答题
+ * - 绿色 = 完整打卡；蓝色 = 积分修复打卡；黄色 = 答题未完成；灰色 = 未答题
  * - 支持切换月份查看历史记录
  * - 可连胜激冻的日期（其后直到昨天都已打卡）带虚线框，点击消耗积分（昨天 233、更早 648）
  * - 鼠标移出整个区域（含触发按钮与面板）时面板与补签弹窗一并关闭
@@ -147,7 +147,11 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                   ? `${month} 月 ${cell.dayOfMonth} 日 · 未打卡，点击${label}（-${cost} 积分）`
                   : status === 'none'
                     ? `${month} 月 ${cell.dayOfMonth} 日`
-                    : `${month} 月 ${cell.dayOfMonth} 日 · ${STATUS_LABEL[status]}`
+                    : `${month} 月 ${cell.dayOfMonth} 日 · ${
+                        status === 'freeze' || status === 'repair'
+                          ? `${STATUS_LABEL[status]}（-${cell.log?.pointsSpent ?? 0} 积分）`
+                          : STATUS_LABEL[status]
+                      }`
                 return (
                   <button
                     key={cell.date}
@@ -180,7 +184,15 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                  完整 {stats.completedDays}
+                  正常 {stats.completedDays}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-orange-500" />
+                  激冻 {stats.freezeDays}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-sky-500" />
+                  补签 {stats.repairDays}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2.5 w-2.5 rounded-sm bg-amber-400" />

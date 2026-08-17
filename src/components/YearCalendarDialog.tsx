@@ -117,7 +117,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
           ))}
         </div>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          虚线框日期为可操作日：琥珀色 = 连胜激冻（昨天，233 积分）、天蓝色 = 补签（更早，648 积分），操作后可以继续向前。
+          虚线框日期为可操作日：琥珀色 = 连胜激冻（昨天，233 积分，保护连胜）、天蓝色 = 补签（更早，648 积分），补签后可以继续向前补签。
         </p>
       </div>
 

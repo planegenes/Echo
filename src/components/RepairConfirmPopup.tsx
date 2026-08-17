@@ -29,6 +29,10 @@ export function RepairConfirmPopup({
 }: RepairConfirmPopupProps) {
   const ref = useRef<HTMLDivElement | null>(null)
   const label = cost === DAILY_STREAK_REPAIR_COST ? '连胜激冻' : '补签'
+  const desc =
+    label === '连胜激冻'
+      ? `消耗 ${cost} 积分，使用连胜激冻保护连胜。`
+      : `消耗 ${cost} 积分，补签后可以继续向前补签。`
 
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -51,9 +55,7 @@ export function RepairConfirmPopup({
         <p className="text-sm font-medium">
           {label} {date}？
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          消耗 {cost} 积分，{label}后可以继续向前{label}。
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
         <div className="mt-2.5 flex justify-end gap-2">
           <Button size="sm" variant="ghost" onClick={onCancel}>
             取消

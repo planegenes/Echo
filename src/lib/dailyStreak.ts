@@ -36,19 +36,24 @@ export interface DayLog {
   date: string
   /** 当天是否答过题（哪怕没完成目标） */
   answered: boolean
-  /** 当天是否达成目标（答对 10 题，或靠积分修复达成） */
+  /** 当天是否达成目标（答对 10 题，或靠积分激冻/补签达成） */
   completed: boolean
-  /** 当天消耗的积分（目前唯一场景：修复断签，每次 50） */
+  /** 当天消耗的积分（连胜激冻 233 / 补签 648） */
   pointsSpent: number
-  /** 是否靠积分修复的打卡 */
-  repaired: boolean
+  /** 修复类型：'freeze' 连胜激冻（昨天，233）、'repair' 补签（更早，648）；缺省表示正常打卡 */
+  repairType?: 'freeze' | 'repair'
 }
 
 /** 打卡日志表：以 YYYY-MM-DD 为键，只存有事件的日子 */
 export type DayLogs = Record<string, DayLog>
 
 /** 日历格子的状态类型 */
-export type DayStatus = 'completed' | 'answered' | 'none'
+export type DayStatus =
+  | 'completed'
+  | 'freeze'
+  | 'repair'
+  | 'answered'
+  | 'none'
 
 /** 本地日期字符串 YYYY-MM-DD */
 export function formatLocalDate(d: Date = new Date()): string {
@@ -110,7 +115,7 @@ export function canRepairDate(
 
 /** 新建一条空白日志 */
 export function createDayLog(date: string): DayLog {
-  return { date, answered: false, completed: false, pointsSpent: 0, repaired: false }
+  return { date, answered: false, completed: false, pointsSpent: 0 }
 }
 
 /** upsert：合并更新某天的日志，返回新表（不可变） */
@@ -144,11 +149,21 @@ export function recordDailyCorrect(
   }
 }
 
-/** 某天日志的状态（供热力图着色） */
+/**
+ * 某天日志的状态（供热力图着色）：
+ * - completed 正常打卡；freeze 连胜激冻；repair 补签；answered 未完成；none 未答题
+ * - 兼容旧数据：repaired=true 无 repairType 时按 pointsSpent 推断（>=648 视为补签，否则连胜激冻）
+ */
 export function dayStatus(log: DayLog | undefined): DayStatus {
   if (!log) return 'none'
-  // 修复/补签过的日子与正常打卡同样显示为「完整打卡」
-  if (log.completed) return 'completed'
+  if (log.completed) {
+    if (log.repairType === 'freeze') return 'freeze'
+    if (log.repairType === 'repair') return 'repair'
+    // 旧数据兼容
+    const legacy = (log as DayLog & { repaired?: boolean }).repaired
+    if (legacy) return log.pointsSpent >= DAILY_REPAIR_COST ? 'repair' : 'freeze'
+    return 'completed'
+  }
   if (log.answered) return 'answered'
   return 'none'
 }
@@ -211,10 +226,12 @@ export function getMonthCalendar(
 
 /** 某月统计 */
 export interface MonthStats {
-  /** 完整打卡天数（含修复打卡） */
+  /** 完整打卡天数（含激冻/补签） */
   completedDays: number
-  /** 其中靠积分修复的天数 */
-  repairedDays: number
+  /** 连胜激冻天数（昨天，233） */
+  freezeDays: number
+  /** 补签天数（更早，648） */
+  repairDays: number
   /** 答过题但未完成的天数 */
   answeredOnlyDays: number
   /** 过去未答题的天数 */
@@ -233,7 +250,8 @@ export function getMonthStats(
   const daysInMonth = new Date(year, month, 0).getDate()
   const stats: MonthStats = {
     completedDays: 0,
-    repairedDays: 0,
+    freezeDays: 0,
+    repairDays: 0,
     answeredOnlyDays: 0,
     missedDays: 0,
     pointsSpent: 0,
@@ -242,10 +260,12 @@ export function getMonthStats(
     const date = formatLocalDate(new Date(year, month - 1, d))
     const log = logs[date]
     if (log) {
-      if (log.completed) {
+      const st = dayStatus(log)
+      if (st === 'completed' || st === 'freeze' || st === 'repair') {
         stats.completedDays += 1
-        if (log.repaired) stats.repairedDays += 1
-      } else if (log.answered) {
+        if (st === 'freeze') stats.freezeDays += 1
+        else if (st === 'repair') stats.repairDays += 1
+      } else if (st === 'answered') {
         stats.answeredOnlyDays += 1
       }
       stats.pointsSpent += log.pointsSpent

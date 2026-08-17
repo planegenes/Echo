@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button'
 import { repairDialogAtom } from '@/store/dailyStreak'
 
 /**
- * 每日连胜「自动修复」提示弹框
- * 当启动检测到漏了一天且已用积分自动修复时显示
+ * 每日连胜「自动激冻」提示弹框
+ * 当启动检测到漏了一天且已用积分自动连胜激冻时显示
  */
 export function DailyStreakRepairDialog() {
   const [data, setData] = useAtom(repairDialogAtom)
@@ -24,10 +24,10 @@ export function DailyStreakRepairDialog() {
       }}
     >
       <DialogHeader>
-        <DialogTitle>连胜已修复</DialogTitle>
+        <DialogTitle>连胜已激冻</DialogTitle>
         <DialogDescription>
           检测到昨日未完成答题，已自动使用 {data?.cost ?? 0}{' '}
-          积分修复连胜，当前连续答题 {data?.streakDays ?? 0} 天。
+          积分连胜激冻保护连胜，当前连续答题 {data?.streakDays ?? 0} 天。
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
