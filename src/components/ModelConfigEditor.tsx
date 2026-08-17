@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ModelConfig, ThinkingLevel } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -35,15 +35,17 @@ export function ModelConfigEditor({
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState<string | null>(null)
 
-  // 同步外部 config.customParams 到文本框
-  useEffect(() => {
+  // 同步外部 config.customParams 到文本框（渲染期调整）
+  const [prevParams, setPrevParams] = useState(config.customParams)
+  if (prevParams !== config.customParams) {
+    setPrevParams(config.customParams)
     setJsonText(
       config.customParams && Object.keys(config.customParams).length > 0
         ? JSON.stringify(config.customParams, null, 2)
         : '',
     )
     setJsonError(null)
-  }, [config.customParams])
+  }
 
   const handleThinkingChange = (level: ThinkingLevel) => {
     onChange({ ...config, thinkingLevel: level })

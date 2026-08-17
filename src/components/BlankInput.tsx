@@ -36,7 +36,6 @@ export function BlankInput({
   return (
     <span className="inline-flex items-center justify-center align-baseline mx-1 my-0.5">
       <input
-        // eslint-disable-next-line react/no-unknown-property
         data-blank-id={blankId}
         type="text"
         value={value}
