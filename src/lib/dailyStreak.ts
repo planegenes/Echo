@@ -48,7 +48,7 @@ export interface DayLog {
 export type DayLogs = Record<string, DayLog>
 
 /** 日历格子的状态类型 */
-export type DayStatus = 'completed' | 'repaired' | 'answered' | 'none'
+export type DayStatus = 'completed' | 'answered' | 'none'
 
 /** 本地日期字符串 YYYY-MM-DD */
 export function formatLocalDate(d: Date = new Date()): string {
@@ -147,7 +147,7 @@ export function recordDailyCorrect(
 /** 某天日志的状态（供热力图着色） */
 export function dayStatus(log: DayLog | undefined): DayStatus {
   if (!log) return 'none'
-  if (log.completed && log.repaired) return 'repaired'
+  // 修复/补签过的日子与正常打卡同样显示为「完整打卡」
   if (log.completed) return 'completed'
   if (log.answered) return 'answered'
   return 'none'

@@ -88,13 +88,14 @@ describe('upsertDayLog', () => {
 })
 
 describe('dayStatus', () => {
-  it('状态优先级：修复 > 完成 > 答题 > 无', () => {
+  it('状态优先级：完成 > 答题 > 无；修复/补签不单独区分', () => {
     expect(dayStatus(undefined)).toBe('none')
     expect(dayStatus(mkLog('2024-01-15', { answered: true }))).toBe('answered')
     expect(dayStatus(mkLog('2024-01-15', { completed: true }))).toBe('completed')
+    // 修复/补签过的日子同样显示为完整打卡
     expect(
       dayStatus(mkLog('2024-01-15', { completed: true, repaired: true })),
-    ).toBe('repaired')
+    ).toBe('completed')
   })
 })
 
