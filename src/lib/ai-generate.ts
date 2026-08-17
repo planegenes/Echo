@@ -1,4 +1,11 @@
-import type { AppSettings, ContentFormat, PairItem, SentenceItem, TextItem } from '@/types'
+import type {
+  AppSettings,
+  Content,
+  ContentFormat,
+  PairItem,
+  SentenceItem,
+  TextItem,
+} from '@/types'
 import { uid } from './utils'
 import {
   AiConfigError,
@@ -22,8 +29,10 @@ import {
 
 const PAIRS_SYSTEM =
   '你是一个题库生成助手，负责根据用户需求生成配对题目。' +
-  '每对配对包含左侧(left)和右侧(right)两项，可以是文本、LaTeX 或注音格式。' +
-  '只返回 JSON，结构为 {"pairs":[{"left":"左侧内容","right":"右侧内容","format":"text"}]}。' +
+  '每对配对包含左侧(left)和右侧(right)，每侧可以是单个内容，也可以是多个内容（数组）。' +
+  '当一侧包含多个内容项时，表示该组内任意一项与另一侧任意一项都构成正确配对。' +
+  '每个内容项可以是文本、LaTeX 或注音格式。' +
+  '只返回 JSON，结构为 {"pairs":[{"left":"内容"或["内容1","内容2"],"right":"内容"或["内容1","内容2"],"format":"text"}]}。' +
   'format 字段可选，取值为 "text"（默认）、"latex"（公式，如 a^2+b^2=c^2）或 "ruby"（注音，如 東^と 或 {東京}^{とうきょう}）。' +
   '生成的题目应当准确、有意义、避免重复，且 left 与 right 必须存在明确的配对关系。'
 
@@ -174,21 +183,36 @@ export async function generatePairs(
     throw new AiResponseError('AI 返回缺少 pairs 数组')
   }
 
+  // 将单个字符串或字符串数组规范化为 Content 数组
+  const toContents = (value: unknown, format: ContentFormat): Content[] => {
+    const items = Array.isArray(value) ? value : [value]
+    return items
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .map((v) => ({ format, value: v.trim() }))
+  }
+
   return pairs
     .filter((p): p is Record<string, unknown> => {
       if (!p || typeof p !== 'object') return false
       const x = p as Record<string, unknown>
-      return typeof x.left === 'string' && typeof x.right === 'string'
+      return (
+        (typeof x.left === 'string' || Array.isArray(x.left)) &&
+        (typeof x.right === 'string' || Array.isArray(x.right))
+      )
     })
     .map((p) => {
       const format = normalizeFormat(p.format)
+      const left = toContents(p.left, format)
+      const right = toContents(p.right, format)
+      if (left.length === 0 || right.length === 0) return null
       return {
         id: uid('pair'),
-        left: [{ format, value: String(p.left) }],
-        right: [{ format, value: String(p.right) }],
+        left,
+        right,
         stats: { lr: 0, rl: 0 },
       } as PairItem
     })
+    .filter((p): p is PairItem => p !== null)
 }
 
 /**

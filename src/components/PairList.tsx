@@ -84,34 +84,33 @@ export function PairList({
               <li
                 key={pair.id}
                 className={cn(
-                  'flex items-center gap-3 rounded-md border bg-card px-3 py-2',
+                  'relative grid grid-cols-2 items-center gap-3 rounded-md border bg-card px-3 py-2',
                   'hover:border-primary/40 transition-colors',
                 )}
               >
-                <div className="flex flex-1 items-center gap-3 min-w-0">
-                  <div className="flex-1 min-w-0 truncate">
-                    <ContentListRenderer contents={pair.left} />
-                  </div>
-                  <div className="flex-1 min-w-0 truncate">
-                    <ContentListRenderer contents={pair.right} />
-                  </div>
+                {/* left / right 严格均分整行（各 50%），不受右侧操作区影响 */}
+                <div className="min-w-0 truncate">
+                  <ContentListRenderer contents={pair.left} />
+                </div>
+                <div className="min-w-0 truncate pr-28">
+                  <ContentListRenderer contents={pair.right} />
                 </div>
 
-                {pair.left.some((c) => c.format === 'latex') ||
-                pair.right.some((c) => c.format === 'latex') ? (
-                  <Badge variant="outline">LaTeX</Badge>
-                ) : null}
-                {pair.left.some((c) => c.format === 'ruby') ||
-                pair.right.some((c) => c.format === 'ruby') ? (
-                  <Badge variant="outline">注音</Badge>
-                ) : null}
-                {totalErr > 0 && (
-                  <Badge variant="warning" title="累计错误权重">
-                    {totalErr}
-                  </Badge>
-                )}
-
-                <div className="flex items-center gap-1">
+                {/* 格式 / 权重徽章与操作按钮：固定在行右侧，不参与左右两列分割 */}
+                <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                  {pair.left.some((c) => c.format === 'latex') ||
+                  pair.right.some((c) => c.format === 'latex') ? (
+                    <Badge variant="outline">LaTeX</Badge>
+                  ) : null}
+                  {pair.left.some((c) => c.format === 'ruby') ||
+                  pair.right.some((c) => c.format === 'ruby') ? (
+                    <Badge variant="outline">注音</Badge>
+                  ) : null}
+                  {totalErr > 0 && (
+                    <Badge variant="warning" title="累计错误权重">
+                      {totalErr}
+                    </Badge>
+                  )}
                   {totalErr > 0 && (
                     <Button
                       size="icon"
