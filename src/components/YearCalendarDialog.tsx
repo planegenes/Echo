@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useAtomValue, useStore } from 'jotai'
 import {
   Dialog,
@@ -15,6 +15,7 @@ import {
 } from '@/lib/dailyStreak'
 import { cn } from '@/lib/utils'
 import { STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
+import { RepairConfirmPopup } from '@/components/RepairConfirmPopup'
 
 export interface YearCalendarDialogProps {
   open: boolean
@@ -31,19 +32,26 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
   const logs = useAtomValue(dayLogsAtom)
   const today = formatLocalDate()
   const year = useMemo(() => new Date().getFullYear(), [])
+  /** 待确认补签的日期与锚点 */
+  const [pendingRepair, setPendingRepair] = useState<{
+    date: string
+    x: number
+    y: number
+  } | null>(null)
 
   const months = useMemo(
     () => Array.from({ length: 12 }, (_, i) => getMonthCalendar(logs, year, i + 1, today)),
     [logs, year, today],
   )
 
-  /** 点击可补签日期：确认后消耗积分补签 */
-  const handleRepair = (date: string) => {
-    const ok = window.confirm(
-      `消耗 ${DAILY_REPAIR_COST} 积分补签 ${date}？\n补签后前一天也可继续补签。`,
-    )
-    if (!ok) return
-    repairDateOnCalendar(store, date)
+  /** 点击可补签日期：在点击位置弹出确认 */
+  const handleRepair = (e: React.MouseEvent, date: string) => {
+    setPendingRepair({ date, x: e.clientX, y: e.clientY })
+  }
+
+  const confirmRepair = () => {
+    if (pendingRepair) repairDateOnCalendar(store, pendingRepair.date)
+    setPendingRepair(null)
   }
 
   return (
@@ -82,7 +90,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
                           ? `${mi + 1} 月 ${cell.dayOfMonth} 日 · 未打卡，点击补签（-${DAILY_REPAIR_COST} 积分）`
                           : `${mi + 1} 月 ${cell.dayOfMonth} 日`
                       }
-                      onClick={() => handleRepair(cell.date)}
+                      onClick={(e) => handleRepair(e, cell.date)}
                       className={cn(
                         'flex h-6 w-6 items-center justify-center rounded text-[10px]',
                         STATUS_STYLE[status],
@@ -104,6 +112,17 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
           虚线框日期为可补签日，点击消耗 {DAILY_REPAIR_COST} 积分补签，补签后可继续补签前一天。
         </p>
       </div>
+
+      {/* 补签确认弹窗 */}
+      {pendingRepair && (
+        <RepairConfirmPopup
+          x={pendingRepair.x}
+          y={pendingRepair.y}
+          date={pendingRepair.date}
+          onConfirm={confirmRepair}
+          onCancel={() => setPendingRepair(null)}
+        />
+      )}
     </Dialog>
   )
 }

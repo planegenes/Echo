@@ -12,6 +12,7 @@ import {
 } from '@/lib/dailyStreak'
 import { cn } from '@/lib/utils'
 import { STATUS_LABEL, STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
+import { RepairConfirmPopup } from '@/components/RepairConfirmPopup'
 
 /**
  * 顶栏连胜处 hover 弹出的当月打卡日历
@@ -26,6 +27,12 @@ export function CalendarPopover() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
+  /** 待确认补签的日期与锚点 */
+  const [pendingRepair, setPendingRepair] = useState<{
+    date: string
+    x: number
+    y: number
+  } | null>(null)
 
   const cells = useMemo(
     () => getMonthCalendar(logs, year, month, today),
@@ -53,13 +60,14 @@ export function CalendarPopover() {
     }
   }
 
-  /** 点击可补签日期：确认后消耗积分补签 */
-  const handleRepair = (date: string) => {
-    const ok = window.confirm(
-      `消耗 ${DAILY_REPAIR_COST} 积分补签 ${date}？\n补签后前一天也可继续补签。`,
-    )
-    if (!ok) return
-    repairDateOnCalendar(store, date)
+  /** 点击可补签日期：在点击位置弹出确认 */
+  const handleRepair = (e: React.MouseEvent, date: string) => {
+    setPendingRepair({ date, x: e.clientX, y: e.clientY })
+  }
+
+  const confirmRepair = () => {
+    if (pendingRepair) repairDateOnCalendar(store, pendingRepair.date)
+    setPendingRepair(null)
   }
 
   return (
@@ -114,7 +122,7 @@ export function CalendarPopover() {
               type="button"
               title={title}
               disabled={!repairable}
-              onClick={() => handleRepair(cell.date)}
+              onClick={(e) => handleRepair(e, cell.date)}
               className={cn(
                 'flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium',
                 STATUS_STYLE[status],
@@ -155,6 +163,16 @@ export function CalendarPopover() {
           本月消耗积分 {stats.pointsSpent} · 补签 {DAILY_REPAIR_COST}/天
         </p>
       </div>
+      {/* 补签确认弹窗 */}
+      {pendingRepair && (
+        <RepairConfirmPopup
+          x={pendingRepair.x}
+          y={pendingRepair.y}
+          date={pendingRepair.date}
+          onConfirm={confirmRepair}
+          onCancel={() => setPendingRepair(null)}
+        />
+      )}
     </div>
   )
 }
