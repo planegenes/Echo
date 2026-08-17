@@ -30,11 +30,10 @@ import {
 
 const PAIRS_SYSTEM =
   '你是一个题库生成助手，负责根据用户需求生成配对题目。' +
-  '每对配对包含左侧(left)和右侧(right)，每侧可以是单个内容，也可以是多个内容（数组）。' +
-  '当一侧包含多个内容项时，表示该组内任意一项与另一侧任意一项都构成正确配对。' +
-  '每个内容项可以是文本、LaTeX 或注音格式。' +
-  '只返回 JSON，结构为 {"pairs":[{"left":"内容"或["内容1","内容2"],"right":"内容"或["内容1","内容2"],"format":"text"}]}。' +
-  'format 字段可选，取值为 "text"（默认）、"latex"（公式，如 a^2+b^2=c^2）或 "ruby"（注音，如 東^と 或 {東京}^{とうきょう}）。' +
+  '每对配对包含左侧(left)和右侧(right)，每侧是一个内容项数组（可以只有一个元素）。' +
+  '每个内容项是对象，结构为 {"value":"内容文本","format":"格式"}，format 可选，取值为 "text"（默认）、"latex"（公式，如 a^2+b^2=c^2）或 "ruby"（注音，如 東^と 或 {東京}^{とうきょう}）。' +
+  '一侧包含多个内容项时，表示该组内任意一项与另一侧任意一项都构成正确配对。' +
+  '只返回 JSON，结构为 {"pairs":[{"left":[{"value":"内容","format":"text"}],"right":[{"value":"内容","format":"text"}]}]}。' +
   '生成的题目应当准确、有意义、避免重复，且 left 与 right 必须存在明确的配对关系。'
 
 const TEXTS_SYSTEM =
@@ -241,12 +240,24 @@ export async function generatePairs(
     throw new AiResponseError('AI 返回缺少 pairs 数组')
   }
 
-  // 将单个字符串或字符串数组规范化为 Content 数组
-  const toContents = (value: unknown, format: ContentFormat): Content[] => {
+  // 将单侧内容规范化为 Content 数组：
+  // - 字符串 / 字符串数组（旧格式，用整体 format）
+  // - 对象数组 [{value,format}]（新格式，各项各自格式）
+  const toContents = (value: unknown, fallbackFormat: ContentFormat): Content[] => {
     const items = Array.isArray(value) ? value : [value]
-    return items
-      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-      .map((v) => ({ format, value: v.trim() }))
+    const result: Content[] = []
+    for (const item of items) {
+      if (typeof item === 'string' && item.trim().length > 0) {
+        result.push({ format: fallbackFormat, value: item.trim() })
+      } else if (item && typeof item === 'object') {
+        const o = item as Record<string, unknown>
+        if (typeof o.value === 'string' && o.value.trim().length > 0) {
+          const fmt = normalizeFormat(o.format)
+          result.push({ format: fmt === 'text' ? fallbackFormat : fmt, value: o.value.trim() })
+        }
+      }
+    }
+    return result
   }
 
   return pairs

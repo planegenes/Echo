@@ -3,7 +3,7 @@ import type { SentenceItem } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, Search, Puzzle, Sparkles } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Puzzle, Sparkles, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface SentenceListProps {
@@ -12,6 +12,7 @@ export interface SentenceListProps {
   onEdit: (sentence: SentenceItem) => void
   onDelete: (id: string) => void
   onAiGenerate?: () => void
+  onAiEdit?: () => void
 }
 
 const PAGE_SIZE = 8
@@ -25,6 +26,7 @@ export function SentenceList({
   onEdit,
   onDelete,
   onAiGenerate,
+  onAiEdit,
 }: SentenceListProps) {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
@@ -65,6 +67,12 @@ export function SentenceList({
           <Button variant="outline" onClick={onAiGenerate}>
             <Sparkles className="h-4 w-4" />
             AI 生成
+          </Button>
+        )}
+        {onAiEdit && (
+          <Button variant="outline" onClick={onAiEdit}>
+            <Wand2 className="h-4 w-4" />
+            AI 修改
           </Button>
         )}
       </div>

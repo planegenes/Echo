@@ -8,6 +8,7 @@ import { SentenceList } from '@/components/SentenceList'
 import { SentenceForm } from '@/components/SentenceForm'
 import { ImportExportPanel } from '@/components/ImportExportPanel'
 import { AiGenerateDialog } from '@/components/AiGenerateDialog'
+import { AiEditDialog } from '@/components/AiEditDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -59,6 +60,9 @@ export default function ManagePairsPage() {
 
   // AI 批量生成 Dialog
   const [aiDialogOpen, setAiDialogOpen] = useState(false)
+
+  // AI 修改题库 Dialog
+  const [aiEditOpen, setAiEditOpen] = useState(false)
 
   // 新增专题 Dialog
   const [topicDialogOpen, setTopicDialogOpen] = useState(false)
@@ -184,6 +188,30 @@ export default function ManagePairsPage() {
       await sentencesApi.mergeImport(items as SentenceItem[])
     }
   }
+
+  // ----- AI 修改题库 -----
+  const openAiEdit = () => {
+    setAiEditOpen(true)
+  }
+
+  const handleAiEditApply = async (
+    items: PairItem[] | TextItem[] | SentenceItem[],
+  ) => {
+    if (tab === 'pairs') {
+      await deckApi.replaceAll(items as PairItem[])
+    } else if (tab === 'texts') {
+      await textsApi.replaceAll(items as TextItem[])
+    } else {
+      await sentencesApi.replaceAll(items as SentenceItem[])
+    }
+  }
+
+  const aiEditItems =
+    tab === 'pairs'
+      ? deckApi.deck
+      : tab === 'texts'
+        ? textsApi.texts
+        : sentencesApi.sentences
 
   // ----- 导入导出 -----
   const handleImport = async (newTopics: Topic[]) => {
@@ -379,6 +407,7 @@ export default function ManagePairsPage() {
             onDelete={(id) => void deckApi.remove(id)}
             onResetStats={(id) => void deckApi.resetStats(id)}
             onAiGenerate={openAiGenerate}
+            onAiEdit={openAiEdit}
           />
         )}
         {tab === 'texts' && activeTopic && (
@@ -388,6 +417,7 @@ export default function ManagePairsPage() {
             onEdit={openEditText}
             onDelete={(id) => void textsApi.remove(id)}
             onAiGenerate={openAiGenerate}
+            onAiEdit={openAiEdit}
           />
         )}
         {tab === 'sentences' && activeTopic && (
@@ -397,6 +427,7 @@ export default function ManagePairsPage() {
             onEdit={openEditSentence}
             onDelete={(id) => void sentencesApi.remove(id)}
             onAiGenerate={openAiGenerate}
+            onAiEdit={openAiEdit}
           />
         )}
 
@@ -532,6 +563,15 @@ export default function ManagePairsPage() {
         onOpenChange={setAiDialogOpen}
         topicType={tab}
         onConfirm={handleAiConfirm}
+      />
+
+      {/* AI 修改题库 Dialog */}
+      <AiEditDialog
+        open={aiEditOpen}
+        onOpenChange={setAiEditOpen}
+        topicType={tab}
+        items={aiEditItems}
+        onApply={handleAiEditApply}
       />
     </AppShell>
   )
