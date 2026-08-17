@@ -8,7 +8,7 @@ import {
   type MatchCardRef,
   type MatchSession,
 } from '@/store/atoms'
-import { clamp, shuffle } from '@/lib/utils'
+import { clamp, sample, shuffle } from '@/lib/utils'
 import { nextWeight, sampleWeight } from '@/lib/weight'
 
 /**
@@ -142,14 +142,18 @@ function buildHardSession(
   const leftCards: MatchCardRef[] = []
   const rightCards: MatchCardRef[] = []
   const correct = pick.correct
-  // 正确 pair：左右各取第一项，唯一能匹配的一对
-  if (correct.left[0]) leftCards.push(cardRef(correct.id, correct.left[0], 'left', 0))
-  if (correct.right[0]) rightCards.push(cardRef(correct.id, correct.right[0], 'right', 0))
+  // 正确 pair：左右各随机取一项，唯一能匹配的一对（组内任意项均可匹配）
+  const correctLeft = sample(correct.left)
+  const correctRight = sample(correct.right)
+  if (correctLeft) leftCards.push(cardRef(correct.id, correctLeft, 'left', 0))
+  if (correctRight) rightCards.push(cardRef(correct.id, correctRight, 'right', 0))
   pick.leftDistractors.forEach((p) => {
-    if (p.left[0]) leftCards.push(cardRef(p.id, p.left[0], 'left', 0))
+    const c = sample(p.left)
+    if (c) leftCards.push(cardRef(p.id, c, 'left', 0))
   })
   pick.rightDistractors.forEach((p) => {
-    if (p.right[0]) rightCards.push(cardRef(p.id, p.right[0], 'right', 0))
+    const c = sample(p.right)
+    if (c) rightCards.push(cardRef(p.id, c, 'right', 0))
   })
   return {
     pairs: allPairs,
