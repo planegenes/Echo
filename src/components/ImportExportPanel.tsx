@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useStore } from 'jotai'
 import type { Topic } from '@/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,6 +10,7 @@ import {
   CheckCircle2,
   ClipboardCopy,
   ClipboardPaste,
+  HardDrive,
 } from 'lucide-react'
 import {
   buildSnapshot,
@@ -19,6 +21,10 @@ import {
   parseSnapshot,
   readSnapshotFromClipboard,
 } from '@/lib/importExport'
+import { buildBackup, downloadBackup, parseBackup } from '@/lib/backup'
+import { settingsAtom, persistSettings } from '@/store/atoms'
+import { pointsAtom } from '@/store/points'
+import { dailyStreakAtom, dayLogsAtom } from '@/store/dailyStreak'
 import {
   Dialog,
   DialogFooter,
@@ -48,7 +54,9 @@ export function ImportExportPanel({
   onImport,
   onRestoreDefaults,
 }: ImportExportPanelProps) {
+  const store = useStore()
   const fileRef = useRef<HTMLInputElement>(null)
+  const backupFileRef = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<Notice>(null)
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false)
   const [pasteText, setPasteText] = useState('')
@@ -137,6 +145,52 @@ export function ImportExportPanel({
     }
   }
 
+  const handleExportBackup = () => {
+    const backup = buildBackup(
+      topics,
+      store.get(pointsAtom),
+      store.get(dailyStreakAtom),
+      store.get(dayLogsAtom),
+      store.get(settingsAtom),
+    )
+    downloadBackup(backup)
+    setNotice({
+      kind: 'success',
+      message: '已导出完整备份（含题库、进度与设置/API 配置）',
+    })
+  }
+
+  const handleImportBackupFile = async (file: File) => {
+    try {
+      const result = parseBackup(JSON.parse(await file.text()))
+      if (!result.ok) {
+        setNotice({ kind: 'error', message: `导入备份失败：${result.error}` })
+        return
+      }
+      const backup = result.data
+      // 恢复题库
+      await onImport(backup.topics)
+      // 恢复积分与打卡日志
+      if (backup.points) store.set(pointsAtom, backup.points)
+      if (backup.dayLogs) store.set(dayLogsAtom, backup.dayLogs)
+      // 恢复设置（含 AI 供应商、WebDAV 凭据）
+      if (backup.settings) {
+        store.set(settingsAtom, backup.settings)
+        await persistSettings(backup.settings)
+        document.documentElement.classList.toggle('dark', backup.settings.darkMode)
+      }
+      setNotice({
+        kind: 'success',
+        message: `已恢复备份：${backup.topics.length} 个专题${backup.settings ? '、设置' : ''}`, 
+      })
+    } catch (err) {
+      setNotice({
+        kind: 'error',
+        message: `导入备份失败：${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }
+
   return (
     <div className="space-y-3 rounded-md border p-4">
       <div className="text-sm font-medium">导入 / 导出</div>
@@ -180,6 +234,42 @@ export function ImportExportPanel({
           <RotateCcw className="h-4 w-4" />
           恢复默认题库
         </Button>
+      </div>
+
+      {/* 完整备份（含设置，区别于 WebDAV 同步快照） */}
+      <div className="space-y-2 border-t pt-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <HardDrive className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">完整备份</span>
+          <span className="text-xs text-muted-foreground">
+            包含题库、学习进度、设置与 API 供应商配置（含密钥），请妥善保管
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportBackup}>
+            <Download className="h-4 w-4" />
+            导出备份
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => backupFileRef.current?.click()}
+          >
+            <Upload className="h-4 w-4" />
+            导入备份
+          </Button>
+          <input
+            ref={backupFileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void handleImportBackupFile(f)
+              e.target.value = ''
+            }}
+          />
+        </div>
       </div>
 
       {notice && (

@@ -5,6 +5,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { ModelSelector } from '@/components/ModelSelector'
 import { ModelConfigEditor } from '@/components/ModelConfigEditor'
 import {
@@ -61,6 +68,8 @@ export function SettingsForm({
   const [refreshingProviderId, setRefreshingProviderId] = useState<string | null>(null)
   const [refreshErrors, setRefreshErrors] = useState<Record<string, string>>({})
   const [showWebdavPass, setShowWebdavPass] = useState(false)
+  /** 首次配置 WebDAV 的备份确认弹窗 */
+  const [webdavFirstOpen, setWebdavFirstOpen] = useState(false)
   const patch = (p: Partial<AppSettings>) =>
     setForm((cur) => ({ ...cur, ...p }))
 
@@ -71,6 +80,17 @@ export function SettingsForm({
   }, [])
 
   const handleSave = async () => {
+    // 首次设置 WebDAV（原地址为空，现在填写）时先确认已做备份
+    const isFirstWebdav =
+      !settings.webdavUrl && form.webdavUrl.trim().length > 0
+    if (isFirstWebdav) {
+      setWebdavFirstOpen(true)
+      return
+    }
+    await doSave()
+  }
+
+  const doSave = async () => {
     setSaving(true)
     setSaveStatus('idle')
     if (saveStatusTimerRef.current) {
@@ -589,6 +609,34 @@ export function SettingsForm({
           </div>
         </div>
       </CardContent>
+
+      {/* 首次配置 WebDAV：确认已做完整备份 */}
+      <Dialog open={webdavFirstOpen} onOpenChange={setWebdavFirstOpen}>
+        <DialogHeader>
+          <DialogTitle>首次配置 WebDAV 同步</DialogTitle>
+          <DialogDescription>
+            开始同步前，建议先在题库管理页导出<b>完整备份</b>
+            （包含题库、学习进度、设置与 API 供应商配置）保存到本地，
+            以防同步过程中误覆盖数据。是否已确认做好备份？
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={() => setWebdavFirstOpen(false)}
+          >
+            先取消
+          </Button>
+          <Button
+            onClick={() => {
+              setWebdavFirstOpen(false)
+              void doSave()
+            }}
+          >
+            已备份，继续保存
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </Card>
   )
 }
