@@ -26,7 +26,6 @@ import {
   Eye,
   EyeOff,
   Volume2,
-  Moon,
   Save,
   RotateCcw,
   Plus,
@@ -49,7 +48,7 @@ export interface SettingsFormProps {
 
 /**
  * 应用设置表单
- * - 音效 / 深色模式
+ * - 音效开关（主题切换在顶栏）
  * - AI 供应商管理（多供应商 + OpenAI/Responses API 双格式）
  * - 默认 AI 模型选择（按供应商分组）
  */
@@ -226,20 +225,7 @@ export function SettingsForm({
           />
         </div>
 
-        {/* 深色模式 */}
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <div className="flex items-center gap-2">
-            <Moon className="h-4 w-4" />
-            <div>
-              <Label>深色模式</Label>
-              <p className="text-xs text-muted-foreground">切换浅色 / 深色主题</p>
-            </div>
-          </div>
-          <Switch
-            checked={form.darkMode}
-            onCheckedChange={(v) => patch({ darkMode: v })}
-          />
-        </div>
+        {/* 深色模式开关已移除：主题切换统一使用顶栏的太阳/月亮按钮（立即生效） */}
 
         {/* AI 供应商管理 */}
         <div className="space-y-3 rounded-md border p-3">
