@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pointsAtom } from '@/store/points'
+import { settingsAtom } from '@/store/atoms'
 import {
   cancelTodayCompletion,
   completionCanceledAtom,
   recordDailyCorrectToStore,
 } from '@/store/dailyStreak'
 import { isStreakValid, rewardForStreak } from '@/lib/points'
+import { playFeedback } from '@/lib/sound'
 
 /**
  * 连续答错扣分规则：
@@ -39,6 +41,10 @@ export function usePointsRecorder() {
     const pending = pendingRef.current
     if (pending === null) return
     pendingRef.current = null
+    // 判题音效（受设置中的音效开关控制）
+    if (store.get(settingsAtom).soundEnabled) {
+      playFeedback(pending)
+    }
     if (!pending) {
       // 答错：清零连续答对计数，累计连续答错（达到 5 题后开始扣分）
       const prev = store.get(pointsAtom)
