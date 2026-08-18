@@ -273,8 +273,8 @@ export default function ManagePairsPage() {
   return (
     <AppShell title="题库管理">
       <div className="space-y-6">
-        {/* 类型 Tab 切换 */}
-        <div className="inline-flex rounded-md border p-1 bg-muted/30">
+        {/* 类型 Tab 切换：极小宽度下改为竖向排列 */}
+        <div className="inline-flex rounded-md border p-1 bg-muted/30 max-[360px]:w-full max-[360px]:flex-col">
           {tabKeys.map((t) => {
             const count = topics.filter((tp) => tp.type === t).length
             return (
@@ -283,7 +283,7 @@ export default function ManagePairsPage() {
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'rounded-sm px-4',
+                  'rounded-sm px-4 max-[360px]:w-full',
                   tab === t
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground',
@@ -405,7 +405,10 @@ export default function ManagePairsPage() {
             onAdd={openAddPair}
             onEdit={openEditPair}
             onDelete={(id) => void deckApi.remove(id)}
-            onResetStats={(id) => void deckApi.resetStats(id)}
+            onAdjustMastery={(id, delta) =>
+              void deckApi.adjustMastery(id, delta)
+            }
+            onResetMastery={(id) => void deckApi.resetMastery(id)}
             onAiGenerate={openAiGenerate}
             onAiEdit={openAiEdit}
           />
@@ -416,6 +419,10 @@ export default function ManagePairsPage() {
             onAdd={openAddText}
             onEdit={openEditText}
             onDelete={(id) => void textsApi.remove(id)}
+            onAdjustMastery={(id, delta) =>
+              void textsApi.adjustMastery(id, delta)
+            }
+            onResetMastery={(id) => void textsApi.resetMastery(id)}
             onAiGenerate={openAiGenerate}
             onAiEdit={openAiEdit}
           />
@@ -426,6 +433,10 @@ export default function ManagePairsPage() {
             onAdd={openAddSentence}
             onEdit={openEditSentence}
             onDelete={(id) => void sentencesApi.remove(id)}
+            onAdjustMastery={(id, delta) =>
+              void sentencesApi.adjustMastery(id, delta)
+            }
+            onResetMastery={(id) => void sentencesApi.resetMastery(id)}
             onAiGenerate={openAiGenerate}
             onAiEdit={openAiEdit}
           />

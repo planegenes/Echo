@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { Shuffle, ArrowLeftRight, BookOpen } from 'lucide-react'
 import { useSentences } from '@/hooks/useSentences'
 import { useTopics } from '@/hooks/useTopics'
+import { masteryOf, sampleWeight } from '@/lib/weight'
 
 type Mode = 'assembly' | 'translate'
 
@@ -31,7 +32,18 @@ export default function SentenceTestPage() {
 
   const currentId = useMemo(() => {
     if (candidates.length === 0) return null
-    const idx = Math.floor(Math.random() * candidates.length)
+    // 按熟练度加权采样：y = 0.97^x，越熟练出现越少
+    const weights = candidates.map((s) => sampleWeight(masteryOf(s)))
+    const total = weights.reduce((a, b) => a + b, 0)
+    let r = Math.random() * total
+    let idx = candidates.length - 1
+    for (let i = 0; i < candidates.length; i++) {
+      r -= weights[i]
+      if (r <= 0) {
+        idx = i
+        break
+      }
+    }
     return candidates[idx].id
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidates, seed])

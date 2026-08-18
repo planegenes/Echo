@@ -32,11 +32,13 @@ const pairSchema = z.object({
   left: contentArraySchema,
   right: contentArraySchema,
   stats: pairStatsSchema,
+  mastery: z.number().optional(),
 })
 
 const textSchema = z.object({
   id: z.string().min(1),
   content: z.string().min(1),
+  mastery: z.number().optional(),
 })
 
 const sentenceSchema = z.object({
@@ -44,6 +46,7 @@ const sentenceSchema = z.object({
   answer: z.string(),
   hint: z.string().default(''),
   words: z.array(z.string()).default([]),
+  mastery: z.number().optional(),
 })
 
 const topicSchema = z.object({
@@ -122,6 +125,7 @@ export function parseSnapshot(input: unknown): ParseResult {
         answer: s.answer,
         hint: s.hint ?? '',
         words: s.words.slice(),
+        mastery: s.mastery,
       })),
     }))
   } else {
@@ -172,6 +176,7 @@ export function buildSnapshot(
         answer: s.answer,
         hint: s.hint,
         words: s.words.slice(),
+        mastery: s.mastery,
       })),
     })),
     points,

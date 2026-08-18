@@ -26,6 +26,7 @@ import defaultSentencesZh from '@/presets/default-sentences-zh.json'
 import defaultSentencesYue from '@/presets/default-sentences-yue.json'
 import defaultSentencesEn from '@/presets/default-sentences-en.json'
 import { migrateLegacySettings, normalizeProvider } from '@/lib/ai-providers'
+import { adjustMastery } from '@/lib/weight'
 import { uid } from '@/lib/utils'
 
 /**
@@ -265,6 +266,24 @@ export async function loadPersistedData(): Promise<void> {
     return t
   })
   if (needsPersist) {
+    await dbClearTopics()
+    for (const t of topics) await dbPutTopic(t)
+  }
+
+  // 迁移：旧配对权重 w（0~100，默认 50）全部重置为熟练度 0，并一次性清除 w 字段
+  let needsMasteryMigration = false
+  topics = topics.map((t) => ({
+    ...t,
+    pairs: t.pairs.map((p) => {
+      if (p.stats && p.stats.w !== undefined) {
+        needsMasteryMigration = true
+        const { w: _omit, ...rest } = p.stats
+        return { ...p, stats: rest as PairStats, mastery: p.mastery ?? 0 }
+      }
+      return p
+    }),
+  }))
+  if (needsMasteryMigration) {
     await dbClearTopics()
     for (const t of topics) await dbPutTopic(t)
   }
@@ -601,7 +620,7 @@ export async function resetAllPairs(): Promise<void> {
   await persistTopic({ ...topic, pairs: [] })
 }
 
-/** 重置活动配对专题中某 pair 的学习记录 */
+/** 重置活动配对专题中某 pair 的学习记录（错误统计 + 熟练度归零） */
 export async function resetPairStats(id: string): Promise<void> {
   const topicId = getActivePairsTopicId()
   if (!topicId) return
@@ -610,8 +629,39 @@ export async function resetPairStats(id: string): Promise<void> {
   if (!topic) return
   const pair = topic.pairs.find((p) => p.id === id)
   if (!pair) return
-  const next: PairItem = { ...pair, stats: { lr: 0, rl: 0, w: 50 } as PairStats }
+  const next: PairItem = {
+    ...pair,
+    stats: { lr: 0, rl: 0 } as PairStats,
+    mastery: 0,
+  }
   await persistPair(next)
+}
+
+/** 手动调整活动配对专题中某 pair 的熟练度（±0.5） */
+export async function adjustPairMastery(
+  id: string,
+  delta: number,
+): Promise<void> {
+  const topicId = getActivePairsTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const pair = topic.pairs.find((p) => p.id === id)
+  if (!pair) return
+  await persistPair({ ...pair, mastery: adjustMastery(pair, delta) })
+}
+
+/** 重置活动配对专题中某 pair 的熟练度为 0（保留错误统计） */
+export async function resetPairMastery(id: string): Promise<void> {
+  const topicId = getActivePairsTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const pair = topic.pairs.find((p) => p.id === id)
+  if (!pair) return
+  await persistPair({ ...pair, mastery: 0 })
 }
 
 /** 批量替换活动配对专题的 pair（用于导入/恢复默认） */
@@ -682,6 +732,33 @@ export async function persistTexts(texts: TextItem[]): Promise<void> {
   await persistTopic({ ...topic, texts })
 }
 
+/** 手动调整活动填空专题中某 text 的熟练度（±0.5） */
+export async function adjustTextMastery(
+  id: string,
+  delta: number,
+): Promise<void> {
+  const topicId = getActiveTextsTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const text = topic.texts.find((t) => t.id === id)
+  if (!text) return
+  await persistText({ ...text, mastery: adjustMastery(text, delta) })
+}
+
+/** 重置活动填空专题中某 text 的熟练度为 0 */
+export async function resetTextMastery(id: string): Promise<void> {
+  const topicId = getActiveTextsTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const text = topic.texts.find((t) => t.id === id)
+  if (!text) return
+  await persistText({ ...text, mastery: 0 })
+}
+
 // ----- 跨专题查找文本 -----
 
 /** 按 textId 在所有专题中查找所属文本与专题 */
@@ -694,6 +771,20 @@ export function findTextInTopics(
     if (text) return { text, topic }
   }
   return null
+}
+
+/** 按 id 在所有专题中更新 text 的熟练度（不依赖活动专题，供游戏判题后调用） */
+export async function updateTextMasteryById(
+  id: string,
+  mastery: number,
+): Promise<void> {
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.texts.some((x) => x.id === id))
+  if (!topic) return
+  await persistTopic({
+    ...topic,
+    texts: topic.texts.map((t) => (t.id === id ? { ...t, mastery } : t)),
+  })
 }
 
 // ----- Sentence 级别（操作活动组句专题）-----
@@ -754,6 +845,33 @@ export async function persistSentences(sentences: SentenceItem[]): Promise<void>
   await persistTopic({ ...topic, sentences })
 }
 
+/** 手动调整活动组句专题中某 sentence 的熟练度（±0.5） */
+export async function adjustSentenceMastery(
+  id: string,
+  delta: number,
+): Promise<void> {
+  const topicId = getActiveSentencesTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const sentence = topic.sentences.find((s) => s.id === id)
+  if (!sentence) return
+  await persistSentence({ ...sentence, mastery: adjustMastery(sentence, delta) })
+}
+
+/** 重置活动组句专题中某 sentence 的熟练度为 0 */
+export async function resetSentenceMastery(id: string): Promise<void> {
+  const topicId = getActiveSentencesTopicId()
+  if (!topicId) return
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.id === topicId)
+  if (!topic) return
+  const sentence = topic.sentences.find((s) => s.id === id)
+  if (!sentence) return
+  await persistSentence({ ...sentence, mastery: 0 })
+}
+
 // ----- 跨专题查找组句题目 -----
 
 /** 按 sentenceId 在所有专题中查找所属题目与专题 */
@@ -766,6 +884,22 @@ export function findSentenceInTopics(
     if (sentence) return { sentence, topic }
   }
   return null
+}
+
+/** 按 id 在所有专题中更新 sentence 的熟练度（不依赖活动专题，供游戏判题后调用） */
+export async function updateSentenceMasteryById(
+  id: string,
+  mastery: number,
+): Promise<void> {
+  const topics = internalStore.get(topicsAtom)
+  const topic = topics.find((t) => t.sentences.some((x) => x.id === id))
+  if (!topic) return
+  await persistTopic({
+    ...topic,
+    sentences: topic.sentences.map((s) =>
+      s.id === id ? { ...s, mastery } : s,
+    ),
+  })
 }
 
 // ----- 设置 -----

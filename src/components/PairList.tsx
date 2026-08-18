@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ContentListRenderer } from '@/components/ContentRenderer'
-import { isUnderperforming, pairWeight, weightDisplay } from '@/lib/weight'
-import { Plus, Pencil, Trash2, Search, RotateCcw, Sparkles, Wand2 } from 'lucide-react'
+import { MasteryControl } from '@/components/MasteryControl'
+import { Plus, Pencil, Trash2, Search, Sparkles, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface PairListProps {
@@ -13,7 +13,10 @@ export interface PairListProps {
   onAdd: () => void
   onEdit: (pair: PairItem) => void
   onDelete: (id: string) => void
-  onResetStats: (id: string) => void
+  /** 手动调整熟练度（delta = ±0.5） */
+  onAdjustMastery: (id: string, delta: number) => void
+  /** 重置熟练度为 0 */
+  onResetMastery: (id: string) => void
   onAiGenerate?: () => void
   onAiEdit?: () => void
 }
@@ -21,14 +24,15 @@ export interface PairListProps {
 const PAGE_SIZE = 10
 
 /**
- * pair 列表，支持搜索、分页、删除、重置记录
+ * pair 列表，支持搜索、分页、删除、熟练度调整
  */
 export function PairList({
   pairs,
   onAdd,
   onEdit,
   onDelete,
-  onResetStats,
+  onAdjustMastery,
+  onResetMastery,
   onAiGenerate,
   onAiEdit,
 }: PairListProps) {
@@ -50,8 +54,8 @@ export function PairList({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 max-[360px]:basis-full">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
@@ -88,26 +92,25 @@ export function PairList({
       ) : (
         <ul className="space-y-1.5">
           {pageItems.map((pair) => {
-            const display = weightDisplay(pair.stats)
-            const under = isUnderperforming(pair.stats)
             return (
               <li
                 key={pair.id}
                 className={cn(
-                  'relative grid grid-cols-2 items-center gap-3 rounded-md border bg-card px-3 py-2',
+                  // 三部分严格三等分（left / right / 操作区 各 1/3，不受内容量影响）
+                  'grid grid-cols-2 items-center gap-2 rounded-md border bg-card px-3 py-2',
+                  'min-[361px]:grid-cols-[1fr_1fr_1fr]',
                   'hover:border-primary/40 transition-colors',
                 )}
               >
-                {/* left / right 严格均分整行（各 50%），不受右侧操作区影响 */}
                 <div className="min-w-0 truncate">
                   <ContentListRenderer contents={pair.left} />
                 </div>
-                <div className="min-w-0 truncate pr-28">
+                <div className="min-w-0 truncate text-center">
                   <ContentListRenderer contents={pair.right} />
                 </div>
 
-                {/* 格式 / 权重徽章与操作按钮：固定在行右侧，不参与左右两列分割 */}
-                <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                {/* 格式徽章 / 熟练度操作区 / 编辑删除：三等分列内右对齐；极小宽度下换到第二行整行 */}
+                <div className="col-span-2 flex items-center gap-1 min-[361px]:col-span-1 min-[361px]:justify-end">
                   {pair.left.some((c) => c.format === 'latex') ||
                   pair.right.some((c) => c.format === 'latex') ? (
                     <Badge variant="outline">LaTeX</Badge>
@@ -116,25 +119,11 @@ export function PairList({
                   pair.right.some((c) => c.format === 'ruby') ? (
                     <Badge variant="outline">注音</Badge>
                   ) : null}
-                  {/* 权重显示：低于均衡点显示错误率（warning），高于显示熟练度（success） */}
-                  {display && (
-                    <Badge
-                      variant={under ? 'warning' : 'success'}
-                      title={`权重 ${pairWeight(pair.stats)}`}
-                    >
-                      {display}
-                    </Badge>
-                  )}
-                  {under && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => onResetStats(pair.id)}
-                      title="重置学习记录"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <MasteryControl
+                    item={pair}
+                    onAdjust={(delta) => onAdjustMastery(pair.id, delta)}
+                    onReset={() => onResetMastery(pair.id)}
+                  />
                   <Button
                     size="icon"
                     variant="ghost"

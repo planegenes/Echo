@@ -9,11 +9,11 @@ import {
   type MatchSession,
 } from '@/store/atoms'
 import { clamp, sample, shuffle } from '@/lib/utils'
-import { nextWeight, sampleWeight } from '@/lib/weight'
+import { masteryOf, nextMastery, sampleWeight } from '@/lib/weight'
 
 /**
  * 模式一：左右配对（两侧为数组，组内叉乘匹配）
- * - 每个 pair 的 left/right 数组会拆成多张卡片
+ * - 每个 pair 的 left/right 每侧随机取一项做成卡片（多内容项每轮只出现随机一项）
  * - 判定：左右卡片所属 pairId 相同即正确（组内任意左项 ↔ 任意右项）
  * - 正确：该 pair 所有卡片变绿，其它淡出；0.6s 后自动开新回合
  * - 错误：选中的两张卡片变红，0.8s 后清除可继续选
@@ -56,7 +56,7 @@ function pickRound(
   if (deck.length < ROUND_SIZE) return null
   const available = deck.filter((p) => !recentPairIds.includes(p.id))
   const pool = available.length >= ROUND_SIZE ? available : deck
-  const weights = pool.map((p) => sampleWeight(p.stats))
+  const weights = pool.map((p) => sampleWeight(masteryOf(p)))
   return weightedSampleN(pool, weights, ROUND_SIZE)
 }
 
@@ -99,8 +99,11 @@ function buildSession(pairs: PairItem[], lastPairIds: string[]): MatchSession {
   const leftCards: MatchCardRef[] = []
   const rightCards: MatchCardRef[] = []
   for (const p of pairs) {
-    p.left.forEach((c, i) => leftCards.push(cardRef(p.id, c, 'left', i)))
-    p.right.forEach((c, i) => rightCards.push(cardRef(p.id, c, 'right', i)))
+    // 每侧随机取一项：多内容项（组内叉乘）每轮只出现随机一项，保证左右卡片数平衡
+    const left = sample(p.left)
+    const right = sample(p.right)
+    if (left) leftCards.push(cardRef(p.id, left, 'left', 0))
+    if (right) rightCards.push(cardRef(p.id, right, 'right', 0))
   }
   return {
     pairs,
@@ -121,7 +124,7 @@ function pickRoundHard(
   if (deck.length < HARD_TOTAL) return null
   const available = deck.filter((p) => !recentPairIds.includes(p.id))
   const pool = available.length >= HARD_TOTAL ? available : deck
-  const weights = pool.map((p) => sampleWeight(p.stats))
+  const weights = pool.map((p) => sampleWeight(masteryOf(p)))
   const picks = weightedSampleN(pool, weights, HARD_TOTAL)
   return {
     correct: picks[0],
@@ -192,10 +195,10 @@ export function useMatchEngine() {
       if (!pair) return
       const cur = { lr: pair.stats?.lr ?? 0, rl: pair.stats?.rl ?? 0 }
       const next = patch(cur)
-      // 熟练度权重：正确 +1，错误 -2
-      const w =
-        correct === undefined ? (pair.stats?.w ?? 50) : nextWeight(pair.stats, correct)
-      void persistPair({ ...pair, stats: { ...next, w } })
+      // 熟练度：答对 +0.5，答错 -0.8
+      const mastery =
+        correct === undefined ? masteryOf(pair) : nextMastery(pair, correct)
+      void persistPair({ ...pair, stats: { ...next }, mastery })
     },
     [deck],
   )

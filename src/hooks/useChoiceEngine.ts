@@ -4,7 +4,7 @@ import { usePointsRecorder } from '@/hooks/usePoints'
 import type { Content, ContentFormat, PairItem } from '@/types'
 import { activeDeckAtom, persistPair, type ChoiceSession } from '@/store/atoms'
 import { clamp, randInt, sample, sampleN, shuffle, uid } from '@/lib/utils'
-import { nextWeight, sampleWeight } from '@/lib/weight'
+import { masteryOf, nextMastery, sampleWeight } from '@/lib/weight'
 import type { ChoiceDirection } from '@/types'
 
 /**
@@ -61,7 +61,7 @@ function pickQuestion(
   const pool = available.length >= MIN_DECK ? available : deck
 
   const direction: ChoiceDirection = Math.random() < 0.5 ? 'askLeft' : 'askRight'
-  const weights = pool.map((p) => sampleWeight(p.stats))
+  const weights = pool.map((p) => sampleWeight(masteryOf(p)))
 
   const [pair] = weightedSampleN(pool, weights, 1)
   if (!pair) return null
@@ -157,11 +157,11 @@ export function useChoiceEngine() {
       const key = direction === 'askLeft' ? 'lr' : 'rl'
       const cur = pair.stats?.[key] ?? 0
       const next = patch(cur)
-      // 熟练度权重：正确 +1，错误 -2
-      const w =
-        correct === undefined ? (pair.stats?.w ?? 50) : nextWeight(pair.stats, correct)
-      const stats = { ...pair.stats, [key]: next, w } as PairItem['stats']
-      void persistPair({ ...pair, stats })
+      // 熟练度：答对 +0.5，答错 -0.8
+      const mastery =
+        correct === undefined ? masteryOf(pair) : nextMastery(pair, correct)
+      const stats = { ...pair.stats, [key]: next } as PairItem['stats']
+      void persistPair({ ...pair, stats, mastery })
     },
     [deck],
   )
@@ -312,8 +312,8 @@ export function useChoiceEngine() {
       for (const pid of pairIds) {
         const pair = deck.find((p) => p.id === pid)
         if (!pair) continue
-        const w = nextWeight(pair.stats, false)
-        void persistPair({ ...pair, stats: { ...pair.stats, w } })
+        const mastery = nextMastery(pair, false)
+        void persistPair({ ...pair, mastery })
       }
       return {
         ...prev,

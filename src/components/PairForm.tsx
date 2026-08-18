@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ContentRenderer } from '@/components/ContentRenderer'
 import { Plus, Trash2 } from 'lucide-react'
 import { uid } from '@/lib/utils'
-import { DEFAULT_WEIGHT, clampWeight } from '@/lib/weight'
+import { clampMastery, masteryOf, MASTERY_MAX, MASTERY_MIN } from '@/lib/weight'
 
 export interface PairFormProps {
   initial?: PairItem | null
@@ -73,13 +73,13 @@ export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
     if (!canSubmit) return
     setSubmitting(true)
     try {
-      const w = clampWeight(pair.stats?.w ?? DEFAULT_WEIGHT)
+      const mastery = clampMastery(masteryOf(pair))
       await onSubmit({
         ...pair,
         id: pair.id || uid('pair'),
         left: pair.left.filter((c) => c.value.trim().length > 0),
         right: pair.right.filter((c) => c.value.trim().length > 0),
-        stats: { ...(pair.stats ?? { lr: 0, rl: 0 }), w },
+        mastery,
       })
     } finally {
       setSubmitting(false)
@@ -107,23 +107,21 @@ export function PairForm({ initial, onSubmit, onCancel }: PairFormProps) {
 
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">初始权重</span>
+          <span className="text-muted-foreground">初始熟练度</span>
           <Input
             type="number"
-            min={0}
-            max={100}
-            value={pair.stats?.w ?? DEFAULT_WEIGHT}
+            min={MASTERY_MIN}
+            max={MASTERY_MAX}
+            step={0.5}
+            value={masteryOf(pair)}
             onChange={(e) =>
-              setPair((p) => ({
-                ...p,
-                stats: { ...(p.stats ?? { lr: 0, rl: 0 }), w: Number(e.target.value) },
-              }))
+              setPair((p) => ({ ...p, mastery: Number(e.target.value) }))
             }
             className="h-8 w-24"
           />
         </label>
         <span className="text-xs text-muted-foreground">
-          默认 {DEFAULT_WEIGHT} · 答对 +1 · 答错 -2
+          默认 0 · 答对 +0.5 · 答错 -0.8（{MASTERY_MIN} ~ {MASTERY_MAX}）
         </span>
       </div>
 

@@ -3,10 +3,12 @@ import { useAtomValue } from 'jotai'
 import type { SentenceItem } from '@/types'
 import {
   activeSentencesAtom,
+  adjustSentenceMastery,
   persistSentence,
   persistSentences,
   removeSentence as removeSentenceAtom,
   resetAllSentences,
+  resetSentenceMastery,
 } from '@/store/atoms'
 
 /**
@@ -47,6 +49,16 @@ export function useSentences() {
     [sentences],
   )
 
+  /** 手动调整熟练度（±0.5） */
+  const adjustMastery = useCallback(async (id: string, delta: number) => {
+    await adjustSentenceMastery(id, delta)
+  }, [])
+
+  /** 重置熟练度为 0 */
+  const resetMastery = useCallback(async (id: string) => {
+    await resetSentenceMastery(id)
+  }, [])
+
   return {
     sentences,
     add,
@@ -55,5 +67,7 @@ export function useSentences() {
     clearAll,
     replaceAll,
     mergeImport,
+    adjustMastery,
+    resetMastery,
   }
 }

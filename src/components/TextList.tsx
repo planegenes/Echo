@@ -4,6 +4,7 @@ import type { TextItem } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { MasteryControl } from '@/components/MasteryControl'
 import { Plus, Pencil, Trash2, Search, ListChecks, PenLine, Sparkles, Wand2 } from 'lucide-react'
 import { countBlanks } from '@/lib/parser'
 import { cn } from '@/lib/utils'
@@ -14,6 +15,10 @@ export interface TextListProps {
   onAdd: () => void
   onEdit: (text: TextItem) => void
   onDelete: (id: string) => void
+  /** 手动调整熟练度（delta = ±0.5） */
+  onAdjustMastery: (id: string, delta: number) => void
+  /** 重置熟练度为 0 */
+  onResetMastery: (id: string) => void
   onAiGenerate?: () => void
   onAiEdit?: () => void
 }
@@ -23,7 +28,16 @@ const PAGE_SIZE = 8
 /**
  * 文本列表
  */
-export function TextList({ texts, onAdd, onEdit, onDelete, onAiGenerate, onAiEdit }: TextListProps) {
+export function TextList({
+  texts,
+  onAdd,
+  onEdit,
+  onDelete,
+  onAdjustMastery,
+  onResetMastery,
+  onAiGenerate,
+  onAiEdit,
+}: TextListProps) {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
 
@@ -38,8 +52,8 @@ export function TextList({ texts, onAdd, onEdit, onDelete, onAiGenerate, onAiEdi
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 max-[360px]:basis-full">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
@@ -89,6 +103,11 @@ export function TextList({ texts, onAdd, onEdit, onDelete, onAiGenerate, onAiEdi
                     {text.content}
                   </p>
                   <div className="flex items-center gap-1">
+                    <MasteryControl
+                      item={text}
+                      onAdjust={(delta) => onAdjustMastery(text.id, delta)}
+                      onReset={() => onResetMastery(text.id)}
+                    />
                     <Button
                       size="icon"
                       variant="ghost"

@@ -20,7 +20,7 @@ export interface PairStats {
   lr: number
   /** 根据 right 选 left 的累计错误权重 */
   rl: number
-  /** 熟练度权重（0~100，默认 50）：答对 +1，答错 -2，越高越熟练、出题频率越低 */
+  /** @deprecated 旧熟练度权重（0~100，默认 50）已废弃，统一迁移为 mastery（默认 0） */
   w?: number
 }
 
@@ -31,6 +31,8 @@ export interface PairItem {
   /** 右侧内容（多项，组内任意一项与左侧任意一项都匹配） */
   right: Content[]
   stats: PairStats
+  /** 熟练度（默认 0，范围 -20~20）：答对 +0.5、答错 -0.8，越高出题越少 */
+  mastery?: number
   /** 题目级 AI 模型覆盖（为空则使用 settings.defaultAiModel） */
   aiModel?: string
 }
@@ -40,6 +42,8 @@ export interface PairItem {
 export interface TextItem {
   id: string
   content: string
+  /** 熟练度（默认 0，范围 -20~20）：答对 +0.5、答错 -0.8，越高出题越少 */
+  mastery?: number
   /** 题目级 AI 模型覆盖（为空则使用 settings.defaultAiModel） */
   aiModel?: string
 }
@@ -75,6 +79,8 @@ export interface SentenceItem {
   answer: string
   hint: string
   words: string[]
+  /** 熟练度（默认 0，范围 -20~20）：答对 +0.5、答错 -0.8，越高出题越少 */
+  mastery?: number
   /** 题目级 AI 模型覆盖（为空则使用 settings.defaultAiModel） */
   aiModel?: string
 }

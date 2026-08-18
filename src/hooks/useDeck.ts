@@ -3,10 +3,12 @@ import { useAtomValue } from 'jotai'
 import type { PairItem } from '@/types'
 import {
   activeDeckAtom,
+  adjustPairMastery,
   persistDeck,
   persistPair,
   removePair as removePairAtom,
   resetAllPairs,
+  resetPairMastery,
   resetPairStats,
 } from '@/store/atoms'
 import defaultPairs from '@/presets/default-pairs.json'
@@ -38,6 +40,16 @@ export function useDeck() {
     await resetPairStats(id)
   }, [])
 
+  /** 手动调整熟练度（±0.5） */
+  const adjustMastery = useCallback(async (id: string, delta: number) => {
+    await adjustPairMastery(id, delta)
+  }, [])
+
+  /** 重置熟练度为 0 */
+  const resetMastery = useCallback(async (id: string) => {
+    await resetPairMastery(id)
+  }, [])
+
   /** 批量替换（用于导入） */
   const replaceAll = useCallback(async (pairs: PairItem[]) => {
     await persistDeck(pairs)
@@ -67,6 +79,8 @@ export function useDeck() {
     remove,
     clearAll,
     resetStats,
+    adjustMastery,
+    resetMastery,
     replaceAll,
     mergeImport,
     restoreDefaults,

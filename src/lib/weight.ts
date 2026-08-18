@@ -1,57 +1,55 @@
-import type { PairStats } from '@/types'
-
 /**
- * 题目权重（熟练度）模型
- * - 每道题一个权重 w，默认 50（均衡）
- * - 答对权重 +1（更熟练），答错权重 -2（错误率高），范围 [0, 100]
- * - 出题频率与权重成反比：越熟练（w 高）出现越少，错误率高（w 低）出现越多
+ * 熟练度（mastery）模型（所有题型通用：配对 / 填空 / 组句）
+ * - 每道题自身维护一个熟练度值，默认 0
+ * - 答对 +0.5、答错 -0.8，范围 [-20, 20]
+ * - 出题采样权重 y = 0.97^x（x 为熟练度）：越熟练出现越少，易错题出现越多
+ * - 题库显示：<0 显示「易错度」，>0 显示「熟练度」，=0 显示 0
+ * - 题库可手动调整：[↓|0|↑] 每点一次 ±0.5，重置按钮归零
  */
 
-/** 默认权重（均衡点） */
-export const DEFAULT_WEIGHT = 50
-/** 答对时的权重增加 */
-export const WEIGHT_CORRECT_BONUS = 1
-/** 答错时的权重减少 */
-export const WEIGHT_WRONG_PENALTY = 2
-/** 权重范围 */
-export const WEIGHT_MIN = 0
-export const WEIGHT_MAX = 100
+/** 默认熟练度（均衡点） */
+export const MASTERY_DEFAULT = 0
+/** 熟练度范围 */
+export const MASTERY_MIN = -20
+export const MASTERY_MAX = 20
+/** 答对时熟练度增加 */
+export const MASTERY_CORRECT_BONUS = 0.5
+/** 答错时熟练度减少 */
+export const MASTERY_WRONG_PENALTY = 0.8
+/** 题库手动调整步长（[↓|0|↑] 每点一次） */
+export const MASTERY_MANUAL_STEP = 0.5
+/** 出题采样曲线底数：y = 0.97^x */
+export const MASTERY_SAMPLE_BASE = 0.97
 
-/** 取 pair 的当前权重（缺省视为默认） */
-export function pairWeight(stats: PairStats | undefined): number {
-  return stats?.w ?? DEFAULT_WEIGHT
+/** 取题目的熟练度（缺省视为 0） */
+export function masteryOf(item: { mastery?: number } | undefined): number {
+  return item?.mastery ?? MASTERY_DEFAULT
 }
 
-/** 限制权重到 [MIN, MAX] */
-export function clampWeight(w: number): number {
-  return Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, w))
+/** 限制熟练度到 [MIN, MAX] */
+export function clampMastery(m: number): number {
+  return Math.min(MASTERY_MAX, Math.max(MASTERY_MIN, m))
 }
 
-/** 答对/答错后的新权重 */
-export function nextWeight(
-  stats: PairStats | undefined,
+/** 答对/答错后的新熟练度（答对 +0.5，答错 -0.8） */
+export function nextMastery(
+  item: { mastery?: number } | undefined,
   correct: boolean,
 ): number {
-  const w = pairWeight(stats)
-  return clampWeight(
-    w + (correct ? WEIGHT_CORRECT_BONUS : -WEIGHT_WRONG_PENALTY),
+  return clampMastery(
+    masteryOf(item) + (correct ? MASTERY_CORRECT_BONUS : -MASTERY_WRONG_PENALTY),
   )
 }
 
-/** 出题采样权重：越熟练（w 高）出现频率越低（w 低则越高） */
-export function sampleWeight(stats: PairStats | undefined): number {
-  return WEIGHT_MAX + 1 - pairWeight(stats)
+/** 手动调整熟练度（题库 [↓|0|↑] 按钮，步长 ±0.5） */
+export function adjustMastery(
+  item: { mastery?: number } | undefined,
+  delta: number,
+): number {
+  return clampMastery(masteryOf(item) + delta)
 }
 
-/** 题库展示文案：低于默认显示错误率，高于默认显示熟练度，均衡返回 null */
-export function weightDisplay(stats: PairStats | undefined): string | null {
-  const w = pairWeight(stats)
-  if (w === DEFAULT_WEIGHT) return null
-  const pct = Math.round((Math.abs(w - DEFAULT_WEIGHT) / DEFAULT_WEIGHT) * 100)
-  return w < DEFAULT_WEIGHT ? `错误率 ${pct}%` : `熟练度 ${pct}%`
-}
-
-/** 权重是否为「偏错误率」（低于均衡点） */
-export function isUnderperforming(stats: PairStats | undefined): boolean {
-  return pairWeight(stats) < DEFAULT_WEIGHT
+/** 出题采样权重：y = 0.97^x，熟练度越高权重越小、出题越少 */
+export function sampleWeight(mastery: number): number {
+  return Math.pow(MASTERY_SAMPLE_BASE, mastery)
 }

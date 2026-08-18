@@ -3,6 +3,7 @@ import type { SentenceItem } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { MasteryControl } from '@/components/MasteryControl'
 import { Plus, Pencil, Trash2, Search, Puzzle, Sparkles, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -11,6 +12,10 @@ export interface SentenceListProps {
   onAdd: () => void
   onEdit: (sentence: SentenceItem) => void
   onDelete: (id: string) => void
+  /** 手动调整熟练度（delta = ±0.5） */
+  onAdjustMastery: (id: string, delta: number) => void
+  /** 重置熟练度为 0 */
+  onResetMastery: (id: string) => void
   onAiGenerate?: () => void
   onAiEdit?: () => void
 }
@@ -25,6 +30,8 @@ export function SentenceList({
   onAdd,
   onEdit,
   onDelete,
+  onAdjustMastery,
+  onResetMastery,
   onAiGenerate,
   onAiEdit,
 }: SentenceListProps) {
@@ -46,8 +53,8 @@ export function SentenceList({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 max-[360px]:basis-full">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
@@ -100,6 +107,11 @@ export function SentenceList({
                   )}
                 </div>
                 <div className="flex items-center gap-1">
+                  <MasteryControl
+                    item={s}
+                    onAdjust={(delta) => onAdjustMastery(s.id, delta)}
+                    onReset={() => onResetMastery(s.id)}
+                  />
                   <Button
                     size="icon"
                     variant="ghost"

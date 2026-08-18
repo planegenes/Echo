@@ -3,10 +3,12 @@ import { useAtomValue } from 'jotai'
 import type { TextItem } from '@/types'
 import {
   activeTextsAtom,
+  adjustTextMastery,
   persistText,
   persistTexts,
   removeText as removeTextAtom,
   resetAllTexts,
+  resetTextMastery,
 } from '@/store/atoms'
 import defaultTexts from '@/presets/default-texts.json'
 
@@ -37,6 +39,16 @@ export function useTexts() {
     await persistTexts(next)
   }, [])
 
+  /** 手动调整熟练度（±0.5） */
+  const adjustMastery = useCallback(async (id: string, delta: number) => {
+    await adjustTextMastery(id, delta)
+  }, [])
+
+  /** 重置熟练度为 0 */
+  const resetMastery = useCallback(async (id: string) => {
+    await resetTextMastery(id)
+  }, [])
+
   /** 合并导入（保留已有） */
   const mergeImport = useCallback(
     async (items: TextItem[]) => {
@@ -63,5 +75,7 @@ export function useTexts() {
     replaceAll,
     mergeImport,
     restoreDefaults,
+    adjustMastery,
+    resetMastery,
   }
 }

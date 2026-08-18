@@ -119,7 +119,7 @@ function parseEdited(
         id: uid('pair'),
         left,
         right,
-        stats: { lr: 0, rl: 0, w: 50 },
+        stats: { lr: 0, rl: 0 },
       })
     }
     return items
@@ -267,7 +267,7 @@ export function AiEditDialog({
   const busy = loading
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-2xl">
+    <Dialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-[min(42rem,90vw)]">
       <DialogHeader>
         <DialogTitle>AI 修改题库</DialogTitle>
         <DialogDescription>
