@@ -183,3 +183,66 @@
   100% { transform: translateX(320%); }
 }
 
+/* ===== 移动端布局（≤768px） =====
+ * 原生 CSS 嵌套：& 引用父选择器；@media 可嵌套在规则内部（Lightning CSS 编译为兼容写法）
+ * 例：
+ * .game-card {
+ *   @media (max-width: 768px) {
+ *     & .options { grid-template-columns: 1fr; }
+ *   }
+ * }
+ * 新增移动端规则统一追加到本区块。
+ */
+@media (max-width: 768px) {
+  /* 主内容区：收紧内边距，窄屏下让内容更宽 */
+  main > div {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  /* PWA 刘海屏/圆角安全区：顶栏内容左右避开 */
+  header > div {
+    padding-left: calc(1rem + env(safe-area-inset-left));
+    padding-right: calc(1rem + env(safe-area-inset-right));
+  }
+
+  /* === 两行顶栏 ===
+   * 行 1：logo + 右侧功能（火焰/积分/GitHub/主题，ml-auto 右对齐）
+   * 行 2：导航独占一行（order 换行 + flex-basis 100%）
+   */
+  header > div {
+    flex-wrap: wrap;
+    height: auto;
+    row-gap: 0.25rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  header nav {
+    order: 99;
+    flex-basis: 100%;
+    justify-content: center;
+    overflow: visible;
+  }
+
+  /* 导航项：icon 左、文字右（紧凑横排，不再 icon 上文字下） */
+  header nav a {
+    flex-direction: row;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  /* 行 1：连胜+积分 居中（flex-1 占满剩余空间后内容居中），GitHub/主题在右 */
+  header > div > div:last-child {
+    flex: 1;
+    min-width: 0;
+  }
+  header > div > div:last-child > div:first-child {
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+}
+

@@ -91,7 +91,7 @@ export function ModelConfigEditor({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <span className="text-xs text-muted-foreground">
             思考：{THINKING_LEVELS.find((t) => t.value === config.thinkingLevel)?.label}
           </span>

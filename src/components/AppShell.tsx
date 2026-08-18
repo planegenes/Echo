@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Layers, FileText, BookOpen, Settings, Sun, Moon, Puzzle, Coins, Flame } from 'lucide-react'
+import { Home, Layers, FileText, BookOpen, Settings, Sun, Moon, Puzzle, Coins, Flame, MousePointerClick } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Logo } from '@/components/Logo'
 import { cn } from '@/lib/utils'
@@ -30,7 +30,7 @@ function flameColor(streakDays: number): string {
 const NAV: NavItem[] = [
   { to: '/', label: '首页', icon: Home },
   { to: '/match', label: '配对', icon: Layers },
-  { to: '/choice', label: '单选', icon: Layers },
+  { to: '/choice', label: '单选', icon: MousePointerClick },
   { to: '/texts', label: '填空', icon: FileText },
   { to: '/sentences', label: '组句', icon: Puzzle },
   { to: '/manage', label: '题库', icon: BookOpen },
@@ -54,7 +54,7 @@ export function AppShell({ children, title, extra }: AppShellProps) {
   const settings = useSettingsValue()
   const setSettings = useSetSettings()
   const { points, streak } = usePointsValue()
-  const { streakDays } = useDailyStreakValue()
+  const { streakDays, todayCompleted } = useDailyStreakValue()
   const location = useLocation()
   const [yearCalendarOpen, setYearCalendarOpen] = React.useState(false)
 
@@ -66,11 +66,17 @@ export function AppShell({ children, title, extra }: AppShellProps) {
     key: number
   } | null>(null)
 
+  // 积分变动反馈：仅当 points 真正变化时触发（浮动提示 + 数字跳动）
+  // 挂载时 prev 初始为当前值，比较相等不触发；对 StrictMode 双调 effect 也免疫
+  const [bump, setBump] = React.useState(false)
   React.useEffect(() => {
     const prev = prevPointsRef.current
     if (points !== prev) {
       setFloatDelta({ value: points - prev, key: Date.now() })
       prevPointsRef.current = points
+      setBump(true)
+      const t = setTimeout(() => setBump(false), 450)
+      return () => clearTimeout(t)
     }
   }, [points])
 
@@ -114,9 +120,9 @@ export function AppShell({ children, title, extra }: AppShellProps) {
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground overflow-hidden">
               <Logo size={28} className="fill-current" />
             </span>
-            <span className="hidden sm:inline">回响</span>
+            <span className="hidden min-[360px]:inline">回响</span>
           </Link>
-          <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
+          <nav className="flex flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV.map((item) => {
               const active =
                 item.to === '/'
@@ -127,98 +133,114 @@ export function AppShell({ children, title, extra }: AppShellProps) {
                 <Link
                   key={item.to}
                   to={item.to}
+                  title={item.label}
                   className={cn(
-                    'inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
+                    // 断点适配：<sm 仅图标（文字在光标提示）；sm~lg icon 在上文字在下；lg+ icon 在左文字在右
+                    'inline-flex flex-col items-center gap-0.5 rounded-md px-2 py-1 text-sm font-medium transition-colors',
+                    'lg:flex-row lg:gap-1 lg:px-2.5 lg:py-1.5',
                     active
                       ? 'bg-accent text-accent-foreground'
                       : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{item.label}</span>
+                  <span className="hidden text-[10px] leading-none sm:block lg:text-sm lg:leading-normal">
+                    {item.label}
+                  </span>
                 </Link>
               )
             })}
           </nav>
-          {/* 连续答题（hover 弹出当月打卡日历，点击弹出年日历） */}
-          <CalendarPopover
-            trigger={
-              <button
-                type="button"
-                onClick={() => setYearCalendarOpen(true)}
-                className="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm font-semibold tabular-nums transition-colors hover:bg-accent"
-                title={`连续答题 ${streakDays} 天 · 点击查看年打卡日历`}
+          {/* 右侧功能组：桌面整体右对齐；移动端「连胜+积分」居中、「GitHub+主题」在右 */}
+          <div className="ml-auto flex items-center gap-4">
+            <div className="flex items-center gap-4">
+              <CalendarPopover
+                trigger={
+                  <button
+                    type="button"
+                    onClick={() => setYearCalendarOpen(true)}
+                    className="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm font-semibold tabular-nums transition-colors hover:bg-accent"
+                    title={`连续答题 ${streakDays} 天 · 点击查看年打卡日历`}
+                  >
+                    <Flame
+                      className={cn(
+                        'h-4 w-4',
+                        !todayCompleted && 'text-muted-foreground',
+                      )}
+                      style={
+                        todayCompleted
+                          ? { color: flameColor(streakDays) }
+                          : undefined
+                      }
+                    />
+                    <span>{streakDays}</span>
+                  </button>
+                }
+              />
+              <div
+                className="flex items-center gap-1.5 text-sm font-semibold tabular-nums"
+                title={`累计积分 ${points} · 连续答对 ${streak} 题`}
               >
-                <Flame
-                  className={cn(
-                    'h-4 w-4',
-                    streakDays <= 0 && 'text-muted-foreground',
-                  )}
-                  style={
-                    streakDays > 0
-                      ? { color: flameColor(streakDays) }
-                      : undefined
-                  }
-                />
-                <span>{streakDays}</span>
-              </button>
-            }
-          />
-          <div
-            className="flex items-center gap-1.5 text-sm font-semibold tabular-nums"
-            title={`累计积分 ${points} · 连续答对 ${streak} 题`}
-          >
-            <Coins className="h-4 w-4 text-amber-500" />
-            <span
-              key={points}
-              className="relative inline-block animate-[points-bump_0.4s_ease-out]"
-            >
-              {points}
-              {floatDelta && (
+                <Coins className="h-4 w-4 text-amber-500" />
                 <span
-                  key={floatDelta.key}
-                  ref={floatRef}
+                  key={points}
                   className={cn(
-                    'pointer-events-none absolute left-full whitespace-nowrap text-xs font-bold',
-                    floatDelta.value >= 0 ? 'text-emerald-500' : 'text-red-500',
+                    'relative inline-block',
+                    bump && 'animate-[points-bump_0.4s_ease-out]',
                   )}
                 >
-                  {floatDelta.value > 0
-                    ? `+${floatDelta.value}`
-                    : floatDelta.value}
+                  {points}
+                  {floatDelta && (
+                    <span
+                      key={floatDelta.key}
+                      ref={floatRef}
+                      className={cn(
+                        'pointer-events-none absolute left-full whitespace-nowrap text-xs font-bold',
+                        floatDelta.value >= 0
+                          ? 'text-emerald-500'
+                          : 'text-red-500',
+                      )}
+                    >
+                      {floatDelta.value > 0
+                        ? `+${floatDelta.value}`
+                        : floatDelta.value}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="https://github.com/planegenes/Echo"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="GitHub 仓库"
+                title="GitHub 仓库"
+                className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+                </svg>
+              </a>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleDark}
+                aria-label="切换主题"
+              >
+                {settings.darkMode ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
-          <a
-            href="https://github.com/planegenes/Echo"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="GitHub 仓库"
-            title="GitHub 仓库"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-4 w-4"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
-            </svg>
-          </a>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleDark}
-            aria-label="切换主题"
-          >
-            {settings.darkMode ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
         </div>
       </header>
       <main className="flex-1">

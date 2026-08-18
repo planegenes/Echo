@@ -45,7 +45,7 @@ const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children, contentCl
         />
         <div
           className={cn(
-            'relative z-10 w-full max-w-lg rounded-xl border bg-popover p-6 text-popover-foreground shadow-lg',
+            'relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border bg-popover p-6 text-popover-foreground shadow-lg',
             contentClassName,
           )}
         >

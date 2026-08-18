@@ -55,12 +55,7 @@ export function ChoiceGame() {
       <Card>
         <CardContent className="py-6 space-y-5">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              方向：
-              {session.direction === 'askLeft'
-                ? '左侧 → 选右侧'
-                : '右侧 → 选左侧'}
-            </span>
+            <span className="text-muted-foreground">单选匹配</span>
             <div className="flex items-center gap-3">
               <span className="text-success">✓ {engine.score}</span>
               <span className="text-destructive">✗ {engine.errors}</span>

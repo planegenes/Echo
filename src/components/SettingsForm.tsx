@@ -327,7 +327,7 @@ export function SettingsForm({
                       <button
                         type="button"
                         onClick={() => toggleExpand(provider.id)}
-                        className="flex flex-1 items-center justify-between text-left"
+                        className="flex min-w-0 flex-1 items-center justify-between gap-1 text-left"
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium">
