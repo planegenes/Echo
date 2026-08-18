@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { usePointsRecorder } from '@/hooks/usePoints'
 import type { AssemblyOption, AssemblySession } from '@/types'
-import { topicsAtom, findSentenceInTopics } from '@/store/atoms'
+import { topicsAtom, findSentenceInTopics, updateSentenceMasteryById } from '@/store/atoms'
 import { compareIgnorePunctuation } from '@/lib/sentence'
+import { nextMastery } from '@/lib/weight'
 import { randInt, sampleN, shuffle, uid } from '@/lib/utils'
 
 interface AssemblyState {
@@ -160,6 +161,8 @@ export function useSentenceAssemblyEngine(sentenceId: string | null) {
         .join('')
       const correct = compareIgnorePunctuation(composed, sentence.answer)
       queueResult(correct)
+      // 更新熟练度：答对 +0.5，答错 -0.8（按 id 全专题更新，不依赖活动专题）
+      void updateSentenceMasteryById(sentence.id, nextMastery(sentence, correct))
       return {
         session: { ...prev.session, confirmed: true },
         result: { correct },

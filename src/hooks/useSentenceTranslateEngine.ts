@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { usePointsRecorder } from '@/hooks/usePoints'
 import type { TranslateResult, TranslateSession } from '@/types'
-import { topicsAtom, settingsAtom, findSentenceInTopics } from '@/store/atoms'
+import { topicsAtom, settingsAtom, findSentenceInTopics, updateSentenceMasteryById } from '@/store/atoms'
 import { isAiConfigured } from '@/lib/ai'
 import { compareIgnorePunctuation } from '@/lib/sentence'
 import { judgeTranslation } from '@/lib/sentence-ai'
+import { nextMastery } from '@/lib/weight'
 
 interface TranslateState {
   session: TranslateSession | null
@@ -85,6 +86,13 @@ export function useSentenceTranslateEngine(sentenceId: string | null) {
         result = { correct: false, exactMatch: false }
       }
       queueResult(result.correct)
+      // 更新熟练度：答对 +0.5，答错 -0.8（按 id 全专题更新，不依赖活动专题）
+      if (sentence) {
+        void updateSentenceMasteryById(
+          sentence.id,
+          nextMastery(sentence, result.correct),
+        )
+      }
       setState((prev) => ({
         ...prev,
         session: prev.session

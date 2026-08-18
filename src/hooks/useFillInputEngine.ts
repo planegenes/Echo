@@ -2,9 +2,10 @@ import { useCallback, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { usePointsRecorder } from '@/hooks/usePoints'
 import type { FillBlankResult } from '@/types'
-import { topicsAtom, findTextInTopics, settingsAtom, type FillInputSession } from '@/store/atoms'
+import { topicsAtom, findTextInTopics, settingsAtom, updateTextMasteryById, type FillInputSession } from '@/store/atoms'
 import { buildBlankPad, parseText } from '@/lib/parser'
 import { isAiConfigured, judgeBlanks } from '@/lib/ai'
+import { nextMastery } from '@/lib/weight'
 import type { AiJudgeRequest } from '@/types'
 
 /**
@@ -104,7 +105,12 @@ export function useFillInputEngine(textId: string | null) {
           reason: r.reason,
         }
       })
-      queueResult(results.every((r) => r.correct))
+      const correct = results.every((r) => r.correct)
+      queueResult(correct)
+      // 更新熟练度：答对 +0.5，答错 -0.8（按 id 全专题更新，不依赖活动专题）
+      if (text) {
+        void updateTextMasteryById(text.id, nextMastery(text, correct))
+      }
       setState((prev) => ({
         ...prev,
         session: prev.session ? { ...prev.session, confirmed: true } : null,
