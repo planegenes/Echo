@@ -21,7 +21,7 @@ import {
 } from '@/lib/ai-generate'
 import { useSettingsValue } from '@/store/atoms'
 import { isAiConfigured } from '@/lib/ai'
-import { Loader2, Sparkles, RefreshCw, Trash2, Check } from 'lucide-react'
+import { Loader2, Sparkles, RefreshCw, Trash2, Check, Undo2 } from 'lucide-react'
 
 export interface AiGenerateDialogProps {
   open: boolean
@@ -32,8 +32,23 @@ export interface AiGenerateDialogProps {
 }
 
 /**
+ * 一步操作前的完整状态快照（用于「撤回」恢复到上一步）
+ */
+interface StepSnapshot {
+  /** 操作前输入框内容（撤回时恢复到输入框） */
+  prompt: string
+  history: ChatMessage[]
+  /** 操作前最近一次成功请求（撤回时一并恢复，保证「重新生成」重放上一次请求） */
+  lastRequest: ChatMessage[] | null
+  pairs: PairItem[]
+  texts: TextItem[]
+  sentences: SentenceItem[]
+}
+
+/**
  * AI 批量生成题目对话框
  * - 输入需求描述 → 调用 AI 生成 → 在窗体中预览并删除不需要项 → 全部添加到当前专题
+ * - 生成 / 修改后可「撤回」回到上一步（恢复上一次输入与结果），也可「重新生成」直接重复上一轮的生成
  * - 配对题与填空题使用各自预设的提示词与返回格式
  */
 export function AiGenerateDialog({
@@ -54,6 +69,10 @@ export function AiGenerateDialog({
   const [confirming, setConfirming] = useState(false)
   /** 本轮对话历史（user/assistant 交替），用于「修改」携带上下文与「重新生成」 */
   const [history, setHistory] = useState<ChatMessage[]>([])
+  /** 撤回栈：每次成功生成/修改/重新生成前记录一份快照，撤回时恢复到上一步 */
+  const [steps, setSteps] = useState<StepSnapshot[]>([])
+  /** 最近一次成功请求的 messages（不含 system）；「重新生成」严格重放它 */
+  const [lastRequest, setLastRequest] = useState<ChatMessage[] | null>(null)
   /** 当前流式输出（生成过程中实时累积） */
   const [streamText, setStreamText] = useState('')
   const streamRef = useRef<HTMLPreElement | null>(null)
@@ -77,6 +96,8 @@ export function AiGenerateDialog({
       setLoading(false)
       setConfirming(false)
       setHistory([])
+      setSteps([])
+      setLastRequest(null)
       setStreamText('')
     }
   }
@@ -90,14 +111,16 @@ export function AiGenerateDialog({
     setSentences([])
     setError(null)
     setHistory([])
+    setSteps([])
+    setLastRequest(null)
     setStreamText('')
   }
 
   /**
    * 生成 / 修改 / 重新生成
-   * - generate：历史为空时首次生成，历史为新 user 消息
+   * - generate：历史为空时首次生成
    * - modify：追加新 user 消息并携带完整历史
-   * - regenerate：移除最后一条 assistant，用剩余历史重新生成最近一次内容
+   * - regenerate：严格重放上一次成功请求（messages 与参数不变），利用 AI 随机性获得新结果
    */
   const handleGenerate = async (mode: 'generate' | 'modify' | 'regenerate') => {
     const prompt = userPrompt.trim()
@@ -114,15 +137,26 @@ export function AiGenerateDialog({
     let messages: ChatMessage[]
     let nextHistoryBase: ChatMessage[]
     if (mode === 'regenerate') {
-      // 重新生成：去掉最后一条 assistant，以最后一条 user 重新调用
-      messages =
+      // 重新生成：严格重放上一次成功请求（messages 完全相同），利用 AI 随机性获得新结果
+      messages = lastRequest && lastRequest.length > 0 ? lastRequest : history
+      // 历史基座：去掉最后一条 assistant（本次结果将替换它）
+      nextHistoryBase =
         history.at(-1)?.role === 'assistant' ? history.slice(0, -1) : history
-      nextHistoryBase = messages
     } else {
       messages = [...history, { role: 'user', content: prompt }]
       nextHistoryBase = messages
     }
     if (messages.length === 0) return
+
+    // 操作前快照（仅生成成功时入栈，失败不产生可撤回步骤）
+    const snapshot: StepSnapshot = {
+      prompt: userPrompt,
+      history: [...history],
+      lastRequest,
+      pairs: [...pairs],
+      texts: [...texts],
+      sentences: [...sentences],
+    }
 
     setLoading(true)
     setError(null)
@@ -149,6 +183,8 @@ export function AiGenerateDialog({
         setSentences(result)
         if (result.length === 0) setError('AI 未返回有效组句题')
       }
+      setSteps((stack) => [...stack, snapshot])
+      setLastRequest(messages)
       setHistory([...nextHistoryBase, { role: 'assistant', content: fullText }])
       if (mode !== 'regenerate') setUserPrompt('')
     } catch (e) {
@@ -156,6 +192,21 @@ export function AiGenerateDialog({
     } finally {
       setLoading(false)
     }
+  }
+
+  /** 撤回：回到上一步，恢复上一次输入、对话历史与上一步的结果 */
+  const handleUndo = () => {
+    if (steps.length === 0) return
+    const snapshot = steps[steps.length - 1]
+    setSteps(steps.slice(0, -1))
+    setUserPrompt(snapshot.prompt)
+    setHistory(snapshot.history)
+    setLastRequest(snapshot.lastRequest)
+    setPairs(snapshot.pairs)
+    setTexts(snapshot.texts)
+    setSentences(snapshot.sentences)
+    setStreamText('')
+    setError(null)
   }
 
   const handleRemovePair = (id: string) => {
@@ -207,7 +258,7 @@ export function AiGenerateDialog({
     topicType === 'pairs' ? '配对题' : topicType === 'texts' ? '填空题' : '组句题'
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-2xl">
+    <Dialog open={open} onOpenChange={onOpenChange} contentClassName="max-w-[min(42rem,90vw)]">
       <DialogHeader>
         <DialogTitle>AI 批量生成{titleSuffix}</DialogTitle>
         <DialogDescription>
@@ -233,13 +284,25 @@ export function AiGenerateDialog({
             disabled={busy}
           />
           <div className="flex justify-end gap-2">
-            {/* 有历史时才显示「重新生成」：基于当前对话重新生成最近一次内容 */}
+            {/* 有可撤回步骤时显示「撤回」：回到上一步并恢复上一次输入 */}
+            {steps.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={handleUndo}
+                disabled={busy}
+                title="回到上一步，恢复上一次输入与结果"
+              >
+                <Undo2 className="h-4 w-4" />
+                撤回
+              </Button>
+            )}
+            {/* 有历史时才显示「重新生成」：直接重复上一轮的生成 */}
             {history.length > 0 && (
               <Button
                 variant="outline"
                 onClick={() => void handleGenerate('regenerate')}
                 disabled={busy || !aiReady}
-                title="基于当前对话重新生成最近一次结果"
+                title="重复上一次的请求（各参数不变）重新生成，用于获得不同的随机结果"
               >
                 <RefreshCw className="h-4 w-4" />
                 重新生成
