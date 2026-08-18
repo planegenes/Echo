@@ -4,10 +4,12 @@ import {
   DAILY_STREAK_REPAIR_COST,
   canRepairDate,
   dayBeforeYesterdayStr,
+  dayStatus,
   deriveStreakDays,
   formatLocalDate,
   recordDailyCorrect,
   repairCostFor,
+  repairKindFor,
   upsertDayLog,
   yesterdayStr,
   type DailyStreakState,
@@ -34,6 +36,9 @@ export interface RepairDialogData {
 }
 
 export const repairDialogAtom = atom<RepairDialogData | null>(null)
+
+/** 连错 ≥10 取消当天正常打卡的提示弹窗开关 */
+export const completionCanceledAtom = atom<boolean>(false)
 
 type JotaiStore = ReturnType<typeof createStore>
 
@@ -78,11 +83,14 @@ export function recordDailyCorrectToStore(store: JotaiStore, now: number): void 
 
   const today = formatLocalDate(new Date(now))
   const logs = store.get(dayLogsAtom)
+  const reCompleted = (logs[today]?.completed ?? false) || reachedTarget
   store.set(
     dayLogsAtom,
     upsertDayLog(logs, today, {
       answered: true,
-      completed: (logs[today]?.completed ?? false) || reachedTarget,
+      completed: reCompleted,
+      // 重新达成目标后清除「连错取消」标记，恢复为正常打卡（含激冻/补签恢复时保留 repairType）
+      canceled: reCompleted ? undefined : logs[today]?.canceled,
     }),
   )
 }
@@ -90,14 +98,14 @@ export function recordDailyCorrectToStore(store: JotaiStore, now: number): void 
 /**
  * 日历中手动连胜激冻一天（点击月/年历上的可补签日期）
  * - 仅当该日满足 canRepairDate（其后直到昨天都已打卡）时允许
- * - 消耗积分：昨天 233，更早 648（repairCostFor）
+ * - 消耗积分：连胜激冻 233，补签 648（repairCostFor）
  * - 标记为「修复打卡」，返回是否成功
  */
 export function repairDateOnCalendar(store: JotaiStore, date: string): boolean {
   const today = formatLocalDate()
   const logs = store.get(dayLogsAtom)
   if (!canRepairDate(logs, date, today)) return false
-  const cost = repairCostFor(date, today)
+  const cost = repairCostFor(logs, date, today)
   const pts = store.get(pointsAtom)
   if (pts.points < cost) return false
 
@@ -109,11 +117,30 @@ export function repairDateOnCalendar(store: JotaiStore, date: string): boolean {
     dayLogsAtom,
     upsertDayLog(logs, date, {
       completed: true,
-      // 昨天 = 连胜激冻，更早 = 补签
-      repairType: date === yesterdayStr(today) ? 'freeze' : 'repair',
+      // 昨天且前天已打卡 = 连胜激冻，其余 = 补签
+      repairType: repairKindFor(logs, date, today),
       pointsSpent: (logs[date]?.pointsSpent ?? 0) + cost,
     }),
   )
+  return true
+}
+
+/**
+ * 连错惩罚：取消当天「正常」打卡（标记为 canceled 新类型，日历中以独立颜色区分）
+ * - 仅当天有「正常」打卡（completed 且非激冻/补签）时生效，幂等
+ * - 取消同时重置今日答对计数：需重新答对 10 题才能再次打卡
+ * - 返回是否成功取消（供调用方决定是否弹提示）
+ */
+export function cancelTodayCompletion(store: JotaiStore): boolean {
+  const today = formatLocalDate()
+  const logs = store.get(dayLogsAtom)
+  if (dayStatus(logs[today]) !== 'completed') return false
+  store.set(
+    dayLogsAtom,
+    upsertDayLog(logs, today, { completed: false, canceled: true }),
+  )
+  // 重置今日答对计数：需重新答对 10 题才能再次打卡
+  store.set(dailyStreakAtom, { todayCorrect: 0, countDate: today })
   return true
 }
 

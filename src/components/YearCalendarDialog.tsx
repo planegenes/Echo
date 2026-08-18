@@ -8,12 +8,12 @@ import {
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import { pointsAtom } from '@/store/points'
 import {
-  DAILY_STREAK_REPAIR_COST,
   canRepairDate,
   dayStatus,
   formatLocalDate,
   getMonthCalendar,
   repairCostFor,
+  repairKindFor,
 } from '@/lib/dailyStreak'
 import { cn } from '@/lib/utils'
 import { STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
@@ -62,7 +62,8 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
         <DialogTitle>{year} 年打卡日历</DialogTitle>
       </DialogHeader>
       <div className="max-h-[70vh] overflow-y-auto p-4">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {/* 动态列数：auto-fill + minmax，按容器宽度自适应排多少个月 */}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
           {months.map((cells, mi) => (
             <div key={mi} className="rounded-md border bg-card p-2">
               <div className="mb-1 text-center text-xs font-semibold">
@@ -82,9 +83,10 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
                   const status = dayStatus(cell.log)
                   const isFuture = cell.date > today
                   const repairable = !isFuture && canRepairDate(logs, cell.date, today)
-                  const cost = repairCostFor(cell.date, today)
-                  const label =
-                    cost === DAILY_STREAK_REPAIR_COST ? '连胜激冻' : '补签'
+                  const cost = repairCostFor(logs, cell.date, today)
+                  const isFreeze =
+                    repairKindFor(logs, cell.date, today) === 'freeze'
+                  const label = isFreeze ? '连胜激冻' : '补签'
                   return (
                     <button
                       key={cell.date}
@@ -97,14 +99,15 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
                       }
                       onClick={(e) => handleRepair(e, cell.date)}
                       className={cn(
-                        'flex h-6 w-6 items-center justify-center rounded text-[10px]',
+                        // 格子自适应列宽（aspect-square 保持正方形），不再固定 24px
+                        'flex aspect-square w-full items-center justify-center rounded text-[10px]',
                         STATUS_STYLE[status],
                         cell.isToday && 'ring-2 ring-ring',
                         isFuture && 'opacity-40',
                         repairable &&
                           'cursor-pointer ring-1 ring-dashed hover:ring-2',
                         repairable &&
-                          (cost === DAILY_STREAK_REPAIR_COST
+                          (isFreeze
                             ? 'ring-amber-400'
                             : 'ring-sky-400'),
                       )}
@@ -118,7 +121,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
           ))}
         </div>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          虚线框日期为可操作日：琥珀色 = 连胜激冻（昨天，233 积分，保护连胜）、天蓝色 = 补签（更早，648 积分），补签后可以继续向前补签。
+          虚线框日期为可操作日：琥珀色 = 连胜激冻（昨天且前天已打卡，233 积分，保护连胜）、天蓝色 = 补签（其余，648 积分），补签后可以继续向前补签。
         </p>
       </div>
 
@@ -128,10 +131,10 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
           x={pendingRepair.x}
           y={pendingRepair.y}
           date={pendingRepair.date}
-          cost={repairCostFor(pendingRepair.date, today)}
+          cost={repairCostFor(logs, pendingRepair.date, today)}
           canAfford={() =>
             store.get(pointsAtom).points >=
-            repairCostFor(pendingRepair.date, today)
+            repairCostFor(logs, pendingRepair.date, today)
           }
           onConfirm={confirmRepair}
           onCancel={() => setPendingRepair(null)}

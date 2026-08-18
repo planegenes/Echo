@@ -4,13 +4,13 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import { pointsAtom } from '@/store/points'
 import {
-  DAILY_STREAK_REPAIR_COST,
   canRepairDate,
   dayStatus,
   formatLocalDate,
   getMonthCalendar,
   getMonthStats,
   repairCostFor,
+  repairKindFor,
 } from '@/lib/dailyStreak'
 import { cn } from '@/lib/utils'
 import { STATUS_LABEL, STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
@@ -25,7 +25,7 @@ export interface CalendarPopoverProps {
  * 顶栏连胜处 hover 弹出的当月打卡日历
  * - 绿色 = 完整打卡；蓝色 = 积分修复打卡；黄色 = 答题未完成；灰色 = 未答题
  * - 支持切换月份查看历史记录
- * - 可连胜激冻的日期（其后直到昨天都已打卡）带虚线框，点击消耗积分（昨天 233、更早 648）
+ * - 可连胜激冻的日期（其后直到昨天都已打卡）带虚线框，点击消耗积分（昨天且前天已打卡 233、其余 648）
  * - 鼠标移出整个区域（含触发按钮与面板）时面板与补签弹窗一并关闭
  */
 export function CalendarPopover({ trigger }: CalendarPopoverProps) {
@@ -80,7 +80,7 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
     }
   }
 
-  /** 点击可连胜激冻日期：在点击位置弹出确认 */
+  /** 点击可激冻/补签日期：在点击位置弹出确认 */
   const handleRepair = (e: React.MouseEvent, date: string) => {
     setPendingRepair({ date, x: e.clientX, y: e.clientY })
   }
@@ -142,8 +142,9 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                 const isFuture = cell.date > today
                 const repairable =
                   !isFuture && canRepairDate(logs, cell.date, today)
-                const cost = repairCostFor(cell.date, today)
-                const label = cost === DAILY_STREAK_REPAIR_COST ? '连胜激冻' : '补签'
+                const cost = repairCostFor(logs, cell.date, today)
+                const isFreeze = repairKindFor(logs, cell.date, today) === 'freeze'
+                const label = isFreeze ? '连胜激冻' : '补签'
                 const title = repairable
                   ? `${month} 月 ${cell.dayOfMonth} 日 · 未打卡，点击${label}（-${cost} 积分）`
                   : status === 'none'
@@ -169,7 +170,7 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                       repairable &&
                         'cursor-pointer ring-1 ring-dashed hover:ring-2',
                       repairable &&
-                        (cost === DAILY_STREAK_REPAIR_COST
+                        (isFreeze
                           ? 'ring-amber-400'
                           : 'ring-sky-400'),
                     )}
@@ -194,6 +195,10 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2.5 w-2.5 rounded-sm bg-sky-500" />
                   补签 {stats.repairDays}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
+                  取消 {stats.canceledDays}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2.5 w-2.5 rounded-sm bg-amber-400" />
@@ -228,10 +233,10 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
           x={pendingRepair.x}
           y={pendingRepair.y}
           date={pendingRepair.date}
-          cost={repairCostFor(pendingRepair.date, today)}
+          cost={repairCostFor(logs, pendingRepair.date, today)}
           canAfford={() =>
             store.get(pointsAtom).points >=
-            repairCostFor(pendingRepair.date, today)
+            repairCostFor(logs, pendingRepair.date, today)
           }
           onConfirm={confirmRepair}
           onCancel={() => setPendingRepair(null)}

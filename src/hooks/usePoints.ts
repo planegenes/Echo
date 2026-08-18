@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pointsAtom } from '@/store/points'
-import { recordDailyCorrectToStore } from '@/store/dailyStreak'
+import {
+  cancelTodayCompletion,
+  completionCanceledAtom,
+  recordDailyCorrectToStore,
+} from '@/store/dailyStreak'
 import { isStreakValid, rewardForStreak } from '@/lib/points'
 
 /**
@@ -24,6 +28,7 @@ export function wrongPenalty(wrongStreak: number): number {
 export function usePointsRecorder() {
   const store = useStore()
   const setPoints = useSetAtom(pointsAtom)
+  const setCompletionCanceled = useSetAtom(completionCanceledAtom)
   const pendingRef = useRef<boolean | null>(null)
 
   const queueResult = useCallback((correct: boolean) => {
@@ -34,33 +39,36 @@ export function usePointsRecorder() {
     const pending = pendingRef.current
     if (pending === null) return
     pendingRef.current = null
-    setPoints((prev) => {
-      if (!pending) {
-        // 答错：清零连续答对计数，累计连续答错（达到 5 题后开始扣分，可为负数）
-        const wrongStreak = prev.wrongStreak + 1
-        const penalty = wrongPenalty(wrongStreak)
-        return {
-          ...prev,
-          streak: 0,
-          wrongStreak,
-          points: prev.points - penalty,
-        }
+    if (!pending) {
+      // 答错：清零连续答对计数，累计连续答错（达到 5 题后开始扣分）
+      const prev = store.get(pointsAtom)
+      const wrongStreak = prev.wrongStreak + 1
+      const penalty = wrongPenalty(wrongStreak)
+      // 连错恰好达到 10 题：若当天有「正常」打卡则取消并弹提示（只触发一次）
+      if (wrongStreak === 10 && cancelTodayCompletion(store)) {
+        setCompletionCanceled(true)
       }
+      setPoints({
+        ...prev,
+        streak: 0,
+        wrongStreak,
+        points: prev.points - penalty,
+      })
+    } else {
       // 答对：按连续答对累加积分，并更新时间戳，重置连续答错计数
       const now = Date.now()
+      const prev = store.get(pointsAtom)
       const streak = isStreakValid(prev.lastCorrectAt, now)
         ? prev.streak + 1
         : 1
-      return {
+      setPoints({
         points: prev.points + rewardForStreak(streak),
         streak,
         lastCorrectAt: now,
         wrongStreak: 0,
-      }
-    })
-    // 每日打卡（仅答对时累计：今日进度 + 当日日志）
-    if (pending) {
-      recordDailyCorrectToStore(store, Date.now())
+      })
+      // 每日打卡（仅答对时累计：今日进度 + 当日日志）
+      recordDailyCorrectToStore(store, now)
     }
   })
 

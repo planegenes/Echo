@@ -1,6 +1,7 @@
 import { RouterProvider } from 'react-router-dom'
 import { router } from '@/routes'
 import { DailyStreakRepairDialog } from '@/components/DailyStreakRepairDialog'
+import { CompletionCanceledDialog } from '@/components/CompletionCanceledDialog'
 import { PwaUpdatePrompt } from '@/components/PwaUpdatePrompt'
 import { PointsFloatLayer } from '@/components/PointsFloatLayer'
 
@@ -14,6 +15,7 @@ export default function App() {
     <>
       <RouterProvider router={router} />
       <DailyStreakRepairDialog />
+      <CompletionCanceledDialog />
       <PwaUpdatePrompt />
       <PointsFloatLayer />
     </>
