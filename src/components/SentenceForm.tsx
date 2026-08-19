@@ -7,7 +7,8 @@ import { ModelSelector } from '@/components/ModelSelector'
 import { useSettingsValue } from '@/store/atoms'
 import { isAiConfigured } from '@/lib/ai'
 import { segmentSentence } from '@/lib/sentence-ai'
-import { isPunctOrSpace, splitSentence, toChars } from '@/lib/sentence'
+import { splitSentence, toUnits, isPunctOrSpace } from '@/lib/sentence'
+import { ContentRenderer } from '@/components/ContentRenderer'
 import { uid } from '@/lib/utils'
 import { Loader2, Sparkles, Scissors, X } from 'lucide-react'
 
@@ -15,6 +16,36 @@ export interface SentenceFormProps {
   initial?: SentenceItem | null
   onSubmit: (sentence: SentenceItem) => void | Promise<void>
   onCancel: () => void
+}
+
+/**
+ * 由已有分词 words 推导切分线间隙标记（编辑题目时回显到分词区）
+ * 按单元顺序匹配 words，word 边界处生成间隙标记；标点单元自动切分、无需标记
+ */
+function marksFromWords(answer: string, words: string[]): Set<number> {
+  const marks = new Set<number>()
+  if (words.length === 0) return marks
+  const units = toUnits(answer)
+  let wordIdx = 0
+  let wordRest = words[0]
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i]
+    // 标点/空白：words 中不包含，跳过（不消耗 wordRest）
+    if (u.length === 1 && isPunctOrSpace(u)) continue
+    if (wordRest === '') {
+      // 上一个 word 已消耗完，遇到新的非标点单元 → 下一个 word 开头，此处为切分点
+      wordIdx++
+      if (wordIdx >= words.length) break
+      wordRest = words[wordIdx]
+      marks.add(i)
+    }
+    if (wordRest.startsWith(u)) {
+      wordRest = wordRest.slice(u.length)
+    } else {
+      break // 数据不一致，停止推导
+    }
+  }
+  return marks
 }
 
 /**
@@ -44,12 +75,17 @@ export function SentenceForm({ initial, onSubmit, onCancel }: SentenceFormProps)
     setHint(initial?.hint ?? '')
     setAiModel(initial?.aiModel ?? '')
     setWords(initial?.words ?? [])
-    setMarks(new Set())
+    // 编辑已有题目时，把当前分词回显到分词区（切分线标记）
+    setMarks(
+      initial && initial.words.length > 0
+        ? marksFromWords(initial.answer, initial.words)
+        : new Set(),
+    )
     setAiError(null)
   }, [initial])
 
-  const chars = useMemo(() => toChars(answer), [answer])
-  const N = chars.length
+  const units = useMemo(() => toUnits(answer), [answer])
+  const N = units.length
 
   const aiReady = isAiConfigured(settings)
 
@@ -61,15 +97,17 @@ export function SentenceForm({ initial, onSubmit, onCancel }: SentenceFormProps)
     setAiError(null)
   }
 
-  /** 根据鼠标位置计算最近的间隙索引 (0..N) */
+  /** 根据鼠标位置计算最近的间隙索引 (0..N)，按各单元实际位置判定 */
   const computeGap = (clientX: number): number => {
     const row = rowRef.current
     if (!row || N === 0) return 0
-    const rect = row.getBoundingClientRect()
-    const emPx = rect.width / N
-    if (emPx <= 0) return 0
-    const gap = Math.round((clientX - rect.left) / emPx)
-    return Math.max(0, Math.min(N, gap))
+    const spans = row.querySelectorAll<HTMLElement>('[data-unit]')
+    for (let i = 0; i < spans.length; i++) {
+      const rect = spans[i].getBoundingClientRect()
+      // 以该单元中点分界：落在左侧归前一个间隙
+      if (clientX < rect.left + rect.width / 2) return i
+    }
+    return N
   }
 
   const onMouseMove = (e: React.MouseEvent) => {
@@ -82,6 +120,8 @@ export function SentenceForm({ initial, onSubmit, onCancel }: SentenceFormProps)
   const onClickArea = (e: React.MouseEvent) => {
     if (N === 0) return
     const gap = computeGap(e.clientX)
+    // 行首/行尾的间隙（0 / N）对分词无意义，忽略
+    if (gap <= 0 || gap >= N) return
     setMarks((prev) => {
       const next = new Set(prev)
       if (next.has(gap)) next.delete(gap)
@@ -192,30 +232,34 @@ export function SentenceForm({ initial, onSubmit, onCancel }: SentenceFormProps)
               在上方输入答案后，字符将在此按等宽排开，便于标记分词位置。
             </div>
           ) : (
-            <div ref={rowRef} className="inline-flex flex-wrap">
-              {chars.map((ch, i) => (
+            <div ref={rowRef} className="inline-flex flex-wrap gap-x-[6px]">
+              {units.map((u, i) => (
                 <span
                   key={i}
-                  className={
-                    'inline-block w-[1em] text-center ' +
-                    (isPunctOrSpace(ch)
-                      ? 'text-muted-foreground/50'
-                      : 'text-foreground')
-                  }
+                  data-unit
+                  className="relative inline-block text-center"
+                  style={{ minWidth: '1em' }}
                 >
-                  {ch === ' ' ? '·' : ch}
+                  {u === ' ' ? (
+                    <span className="text-muted-foreground/50">·</span>
+                  ) : (
+                    <ContentRenderer
+                      content={{
+                        format: u.includes('^') ? 'ruby' : 'text',
+                        value: u,
+                      }}
+                    />
+                  )}
+                  {/* 切分线：粗 3px，落在间隔正中（间隔 6px，竖线左移 1.5px 后中心与间隔中心对齐） */}
+                  {marks.has(i + 1) ? (
+                    <span className="absolute left-[calc(100%+1.5px)] top-0 bottom-0 w-[3px] bg-primary" />
+                  ) : hoverGap === i + 1 && i + 1 < N ? (
+                    <span className="absolute left-[calc(100%+1.5px)] top-1 bottom-1 w-[3px] border-l-[3px] border-dashed border-primary/60" />
+                  ) : null}
                 </span>
               ))}
             </div>
           )}
-
-          {/* 切分线层：基于行宽按比例定位 */}
-          <SplitLines
-            marks={marks}
-            hoverGap={hoverGap}
-            chars={chars}
-            rowRef={rowRef}
-          />
         </div>
 
         {/* 操作按钮 */}
@@ -274,7 +318,12 @@ export function SentenceForm({ initial, onSubmit, onCancel }: SentenceFormProps)
                   key={i}
                   className="rounded-md border bg-muted/40 px-2 py-0.5 text-sm"
                 >
-                  {w}
+                  <ContentRenderer
+                    content={{
+                      format: w.includes('^') ? 'ruby' : 'text',
+                      value: w,
+                    }}
+                  />
                 </span>
               ))}
             </div>
@@ -300,65 +349,4 @@ export function SentenceForm({ initial, onSubmit, onCancel }: SentenceFormProps)
   )
 }
 
-/**
- * 切分线覆盖层
- * - marks：固定切分线（实线）
- * - hoverGap：光标跟随的临时切分线（虚线）
- * 按字符行宽比例定位，支持自动换行场景下的近似定位
- */
-function SplitLines({
-  marks,
-  hoverGap,
-  chars,
-  rowRef,
-}: {
-  marks: Set<number>
-  hoverGap: number | null
-  chars: string[]
-  rowRef: React.RefObject<HTMLDivElement | null>
-}) {
-  const [emPx, setEmPx] = useState(0)
 
-  useEffect(() => {
-    const row = rowRef.current
-    if (!row || chars.length === 0) {
-      setEmPx(0)
-      return
-    }
-    const update = () => {
-      const rect = row.getBoundingClientRect()
-      setEmPx(rect.width / chars.length)
-    }
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(row)
-    return () => ro.disconnect()
-  }, [rowRef, chars.length])
-
-  if (emPx <= 0) return null
-
-  const lines: { left: number; fixed: boolean }[] = []
-  for (const g of marks) {
-    lines.push({ left: g * emPx, fixed: true })
-  }
-  if (hoverGap !== null && !marks.has(hoverGap)) {
-    lines.push({ left: hoverGap * emPx, fixed: false })
-  }
-
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {lines.map((ln, i) => (
-        <div
-          key={i}
-          className={
-            'absolute top-0 bottom-0 ' +
-            (ln.fixed
-              ? 'w-0.5 bg-primary'
-              : 'w-px bg-primary/40 border-l border-dashed border-primary/60')
-          }
-          style={{ left: ln.left }}
-        />
-      ))}
-    </div>
-  )
-}

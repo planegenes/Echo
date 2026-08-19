@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { ContentRenderer } from '@/components/ContentRenderer'
 import { cn } from '@/lib/utils'
 
 export interface WordOptionProps {
@@ -78,7 +79,13 @@ export function WordOption({
           : 'border-border bg-card hover:border-primary/40 hover:bg-accent/30',
       )}
     >
-      {value}
+      {value.includes('^') ? (
+        <ContentRenderer
+          content={{ format: 'ruby', value }}
+        />
+      ) : (
+        value
+      )}
     </button>
   )
 }

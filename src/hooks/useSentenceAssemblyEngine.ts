@@ -153,6 +153,20 @@ export function useSentenceAssemblyEngine(sentenceId: string | null) {
     })
   }, [])
 
+  /** 候选区内拖拽排序：交换两个选项在列表中的位置 */
+  const reorderOptions = useCallback((activeId: string, overId: string) => {
+    setState((prev) => {
+      if (!prev.session || prev.session.confirmed) return prev
+      const options = prev.session.options.slice()
+      const from = options.findIndex((o) => o.id === activeId)
+      const to = options.findIndex((o) => o.id === overId)
+      if (from === -1 || to === -1 || from === to) return prev
+      const [moved] = options.splice(from, 1)
+      options.splice(to, 0, moved)
+      return { ...prev, session: { ...prev.session, options } }
+    })
+  }, [])
+
   const confirm = useCallback(() => {
     setState((prev) => {
       if (!prev.session || !sentence) return prev
@@ -161,8 +175,9 @@ export function useSentenceAssemblyEngine(sentenceId: string | null) {
         .join('')
       const correct = compareIgnorePunctuation(composed, sentence.answer)
       queueResult(correct)
-      // 更新熟练度：答对 +0.5，答错 -0.8（按 id 全专题更新，不依赖活动专题）
-      void updateSentenceMasteryById(sentence.id, nextMastery(sentence, correct))
+      // 更新熟练度与连对/连错：增量 × 1.1^连续次数（按 id 全专题更新）
+      const nm = nextMastery(sentence, correct)
+      void updateSentenceMasteryById(sentence.id, nm)
       return {
         session: { ...prev.session, confirmed: true },
         result: { correct },
@@ -184,6 +199,7 @@ export function useSentenceAssemblyEngine(sentenceId: string | null) {
     insertOption,
     removeAt,
     reorder,
+    reorderOptions,
     confirm,
     reset,
   }

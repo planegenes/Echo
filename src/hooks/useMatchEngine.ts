@@ -16,11 +16,11 @@ import { masteryOf, nextMastery, sampleWeight } from '@/lib/weight'
  * - 每个 pair 的 left/right 每侧随机取一项做成卡片（多内容项每轮只出现随机一项）
  * - 判定：左右卡片所属 pairId 相同即正确（组内任意左项 ↔ 任意右项）
  * - 正确：该 pair 所有卡片变绿，其它淡出；0.6s 后自动开新回合
- * - 错误：选中的两张卡片变红，0.8s 后清除可继续选
+ * - 错误：直接揭示正确配对（变绿）并换新回合
+ * - 长按标记为无关的卡片仍可点击选中（选中时自动解除标记），与单选一致
  */
 const ROUND_SIZE = 4
 const MATCH_HOLD_MS = 600
-const WRONG_HOLD_MS = 800
 
 /** 困难模式：1 正确 + 4 左干扰 + 4 右干扰 = 9 组，每侧 5 选项 */
 const HARD_TOTAL = 9
@@ -195,10 +195,16 @@ export function useMatchEngine() {
       if (!pair) return
       const cur = { lr: pair.stats?.lr ?? 0, rl: pair.stats?.rl ?? 0 }
       const next = patch(cur)
-      // 熟练度：答对 +0.5，答错 -0.8
-      const mastery =
-        correct === undefined ? masteryOf(pair) : nextMastery(pair, correct)
-      void persistPair({ ...pair, stats: { ...next }, mastery })
+      // 熟练度：增量 × 1.1^连对/连错次数，同时更新连对连错计数
+      const nm =
+        correct === undefined
+          ? {
+              mastery: masteryOf(pair),
+              correctStreak: pair.correctStreak ?? 0,
+              wrongStreak: pair.wrongStreak ?? 0,
+            }
+          : nextMastery(pair, correct)
+      void persistPair({ ...pair, stats: { ...next }, ...nm })
     },
     [deck],
   )
@@ -306,7 +312,8 @@ export function useMatchEngine() {
         const card = cards.find((c) => c.id === cardId)
         if (!card) return prev
         if (prev.session.matchedPairIds.includes(card.pairId)) return prev
-        if (prev.markedIrrelevantIds.includes(cardId)) return prev
+        // 标记为无关的卡片仍可选中，选中时自动解除标记（与单选一致）
+        const unmarked = prev.markedIrrelevantIds.filter((id) => id !== cardId)
 
         const selectedLeft = side === 'left' ? cardId : prev.session.selectedLeft
         const selectedRight = side === 'right' ? cardId : prev.session.selectedRight
@@ -315,6 +322,7 @@ export function useMatchEngine() {
           return {
             ...prev,
             session: { ...prev.session, selectedLeft, selectedRight },
+            markedIrrelevantIds: unmarked,
           }
         }
 
@@ -343,10 +351,11 @@ export function useMatchEngine() {
             },
             score: prev.score + 1,
             justMatchedId: leftCard.pairId,
+            markedIrrelevantIds: unmarked,
           }
         }
 
-        // 错误
+        // 错误：直接揭示正确配对（justMatchedId = 正确 pair），由动画结束后自动换题
         queueResult(false)
         applyStats(
           leftCard.pairId,
@@ -364,14 +373,16 @@ export function useMatchEngine() {
           ...prev,
           session: { ...prev.session, selectedLeft, selectedRight },
           errors: prev.errors + 1,
-          justWrongIds: { left: selectedLeft, right: selectedRight },
+          justMatchedId: rightCard.pairId,
+          justWrongIds: null,
+          markedIrrelevantIds: unmarked,
         }
       })
     },
     [applyStats, queueResult],
   )
 
-  // 选对后 MATCH_HOLD_MS 进入下一回合
+  // 选对/揭示正确后 MATCH_HOLD_MS 进入下一回合
   useEffect(() => {
     if (!state.justMatchedId) return
     const t = setTimeout(() => {
@@ -379,21 +390,6 @@ export function useMatchEngine() {
     }, MATCH_HOLD_MS)
     return () => clearTimeout(t)
   }, [state.justMatchedId, nextRound])
-
-  // 选错后 WRONG_HOLD_MS 清除错误状态与选中
-  useEffect(() => {
-    if (!state.justWrongIds) return
-    const t = setTimeout(() => {
-      setState((prev) => ({
-        ...prev,
-        justWrongIds: null,
-        session: prev.session
-          ? { ...prev.session, selectedLeft: null, selectedRight: null }
-          : null,
-      }))
-    }, WRONG_HOLD_MS)
-    return () => clearTimeout(t)
-  }, [state.justWrongIds])
 
   const selectLeft = useCallback((id: string) => select('left', id), [select])
   const selectRight = useCallback((id: string) => select('right', id), [select])

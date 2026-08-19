@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils'
  * - 普通难度：4 组 pair，左右分别打乱
  * - 困难难度：5+5 选项中只有一对正确答案（1 正确 + 4 左干扰 + 4 右干扰）
  * - 选对：那一对变绿，其他选项淡出；1.2s 后自动重开新一把（避开上一轮）
- * - 选错：选中项变红 0.8s 后变回去
+ * - 选错：直接揭示正确配对（变绿）并自动换题
+ * - 切换难度后直接开始答题，不显示开始提示页
  * - 不再显示文字提示，颜色变化即反馈
  */
 export function MatchGame() {
@@ -25,9 +26,9 @@ export function MatchGame() {
     }
   }, [difficulty, canPlayHard, engine])
 
-  // 普通模式自动开始
+  // 自动开始（两种难度）：切换难度/无会话时直接开新回合
   useEffect(() => {
-    if (difficulty === 'normal' && engine.canPlay && !engine.session) {
+    if (engine.canPlay && !engine.session) {
       engine.start()
     }
   }, [engine, difficulty])

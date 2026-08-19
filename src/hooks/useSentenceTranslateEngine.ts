@@ -86,7 +86,7 @@ export function useSentenceTranslateEngine(sentenceId: string | null) {
         result = { correct: false, exactMatch: false }
       }
       queueResult(result.correct)
-      // 更新熟练度：答对 +0.5，答错 -0.8（按 id 全专题更新，不依赖活动专题）
+      // 更新熟练度与连对/连错：增量 × 1.1^连续次数（按 id 全专题更新，不依赖活动专题）
       if (sentence) {
         void updateSentenceMasteryById(
           sentence.id,

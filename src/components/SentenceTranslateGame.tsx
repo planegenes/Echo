@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { AlertCircle, Loader2, RotateCcw } from 'lucide-react'
+import { ContentRenderer } from '@/components/ContentRenderer'
 import { cn } from '@/lib/utils'
 
 export interface SentenceTranslateGameProps {
@@ -125,7 +126,15 @@ export function SentenceTranslateGame({ sentenceId }: SentenceTranslateGameProps
                 </div>
                 {!result.correct && (
                   <div className="mt-1 text-xs opacity-90">
-                    标准答案：{sentence.answer}
+                    标准答案：
+                    <ContentRenderer
+                      content={{
+                        format: sentence.answer.includes('^')
+                          ? 'ruby'
+                          : 'text',
+                        value: sentence.answer,
+                      }}
+                    />
                   </div>
                 )}
                 {result.reason && (

@@ -1,4 +1,20 @@
 @import "tailwindcss";
+
+/* ===== 全局选择策略：默认禁止选中文字，仅输入类元素可选中 ===== */
+@layer base {
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  /* 需要输写的区域恢复可选中 */
+  input,
+  textarea,
+  [contenteditable='true'] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
@@ -135,7 +151,7 @@
 
 /* Ruby 注音容器：rt 略小于 base */
 .ruby-inline rt {
-  font-size: 0.55em;
+  font-size: 0.75em;
   font-weight: 400;
   line-height: 1;
 }

@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { ContentListRenderer } from '@/components/ContentRenderer'
+import { ContentListRenderer, ContentRenderer } from '@/components/ContentRenderer'
 import { parseText } from '@/lib/parser'
 import {
   generatePairs,
@@ -559,7 +559,14 @@ function SentenceResultList({
           <li key={s.id} className="rounded-md border bg-card p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 space-y-1.5">
-                <div className="text-sm font-medium">{s.answer}</div>
+                <div className="text-sm font-medium">
+                  <ContentRenderer
+                    content={{
+                      format: s.answer.includes('^') ? 'ruby' : 'text',
+                      value: s.answer,
+                    }}
+                  />
+                </div>
                 {s.hint && (
                   <div className="text-xs text-muted-foreground">
                     提示：{s.hint}
@@ -569,9 +576,14 @@ function SentenceResultList({
                   {s.words.map((w, i) => (
                     <span
                       key={i}
-                      className="rounded border bg-muted/40 px-1.5 py-0.5 text-xs"
+                      className="rounded border bg-muted/40 px-1.5 py-0.5 text-sm"
                     >
-                      {w}
+                      <ContentRenderer
+                        content={{
+                          format: w.includes('^') ? 'ruby' : 'text',
+                          value: w,
+                        }}
+                      />
                     </span>
                   ))}
                 </div>

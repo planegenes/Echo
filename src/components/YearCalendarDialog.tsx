@@ -12,8 +12,10 @@ import {
   dayStatus,
   formatLocalDate,
   getMonthCalendar,
+  getMonthStats,
   repairCostFor,
   repairKindFor,
+  type MonthStats,
 } from '@/lib/dailyStreak'
 import { cn } from '@/lib/utils'
 import { STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
@@ -45,6 +47,30 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
     () => Array.from({ length: 12 }, (_, i) => getMonthCalendar(logs, year, i + 1, today)),
     [logs, year, today],
   )
+
+  /** 全年统计（12 个月汇总，底部图例与月日历一致） */
+  const yearStats = useMemo(() => {
+    const total: MonthStats = {
+      completedDays: 0,
+      freezeDays: 0,
+      repairDays: 0,
+      canceledDays: 0,
+      answeredOnlyDays: 0,
+      missedDays: 0,
+      pointsSpent: 0,
+    }
+    for (let m = 1; m <= 12; m++) {
+      const s = getMonthStats(logs, year, m, today)
+      total.completedDays += s.completedDays
+      total.freezeDays += s.freezeDays
+      total.repairDays += s.repairDays
+      total.canceledDays += s.canceledDays
+      total.answeredOnlyDays += s.answeredOnlyDays
+      total.missedDays += s.missedDays
+      total.pointsSpent += s.pointsSpent
+    }
+    return total
+  }, [logs, year, today])
 
   /** 点击可补签日期：在点击位置弹出确认 */
   const handleRepair = (e: React.MouseEvent, date: string) => {
@@ -120,9 +146,48 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
             </div>
           ))}
         </div>
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          虚线框日期为可操作日：琥珀色 = 连胜激冻（昨天且前天已打卡，233 积分，保护连胜）、天蓝色 = 补签（其余，648 积分），补签后可以继续向前补签。
-        </p>
+        {/* 底部图例 + 统计（与月日历一致） */}
+        <div className="mt-3 border-t pt-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+              正常 {yearStats.completedDays}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm bg-orange-500" />
+              激冻 {yearStats.freezeDays}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm bg-sky-500" />
+              补签 {yearStats.repairDays}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
+              取消 {yearStats.canceledDays}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm bg-amber-400" />
+              未完成 {yearStats.answeredOnlyDays}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm bg-muted" />
+              未答 {yearStats.missedDays}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            全年消耗积分 {yearStats.pointsSpent}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-dashed ring-amber-400" />
+              连胜激冻 233
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-dashed ring-sky-400" />
+              补签 648
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* 连胜激冻确认弹窗 */}

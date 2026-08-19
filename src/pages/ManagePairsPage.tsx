@@ -1,4 +1,19 @@
 import { useState } from 'react'
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { AppShell } from '@/components/AppShell'
 import { PairList } from '@/components/PairList'
 import { PairForm } from '@/components/PairForm'
@@ -32,6 +47,114 @@ import defaultSentencesEn from '@/presets/default-sentences-en.json'
 import { Plus, FolderPlus, Pencil, Trash2, Check, X } from 'lucide-react'
 
 type TabKey = TopicType
+
+/** 可拖拽的专题 chip（拖动换顺序，点击激活/重命名/删除） */
+function SortableTopicChip({
+  topic,
+  isActive,
+  isRenaming,
+  renameValue,
+  setRenameValue,
+  confirmRename,
+  cancelRename,
+  itemCount,
+  canDelete,
+  onActivate,
+  onStartRename,
+  onDelete,
+}: {
+  topic: Topic
+  isActive: boolean
+  isRenaming: boolean
+  renameValue: string
+  setRenameValue: (v: string) => void
+  confirmRename: () => void
+  cancelRename: () => void
+  itemCount: number
+  canDelete: boolean
+  onActivate: () => void
+  onStartRename: () => void
+  onDelete: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: topic.id, disabled: isRenaming })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors',
+        isActive
+          ? 'border-primary bg-accent text-foreground'
+          : 'border-border bg-card text-muted-foreground hover:text-foreground',
+        isDragging && 'z-10 shadow-lg opacity-90',
+      )}
+      {...attributes}
+      {...listeners}
+    >
+      {isRenaming ? (
+        <>
+          <Input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') confirmRename()
+              if (e.key === 'Escape') cancelRename()
+            }}
+            className="h-6 w-32 px-1 text-sm"
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={confirmRename}
+            className="text-primary hover:text-primary/80"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={cancelRename}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={onActivate}
+            className="font-medium"
+          >
+            {topic.name}
+          </button>
+          <span className="text-xs opacity-60">({itemCount})</span>
+          <button
+            type="button"
+            onClick={onStartRename}
+            className="ml-1 text-muted-foreground hover:text-foreground"
+            title="重命名"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="text-muted-foreground hover:text-destructive"
+              title="删除"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
 
 /**
  * 题库管理页面
@@ -88,6 +211,34 @@ export default function ManagePairsPage() {
         ? topicsApi.setActiveTextsTopicId
         : topicsApi.setActiveSentencesTopicId
   const activeTopic = tabTopics.find((t) => t.id === activeTopicId) ?? tabTopics[0] ?? null
+
+  // 专题拖拽排序
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 4 } }),
+  )
+
+  const handleTopicDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const from = tabTopics.findIndex((t) => t.id === String(active.id))
+    const to = tabTopics.findIndex((t) => t.id === String(over.id))
+    if (from === -1 || to === -1) return
+    const nextTab = [...tabTopics]
+    const [moved] = nextTab.splice(from, 1)
+    nextTab.splice(to, 0, moved)
+    // 当前类型按新顺序排前，其他类型保持原相对顺序
+    const orderMap = new Map(nextTab.map((t, i) => [t.id, i]))
+    const result = [...topics].sort((a, b) => {
+      const ai = orderMap.get(a.id)
+      const bi = orderMap.get(b.id)
+      if (ai === undefined && bi === undefined) return 0
+      if (ai === undefined) return 1
+      if (bi === undefined) return -1
+      return ai - bi
+    })
+    void topicsApi.reorderTopics(result)
+  }
 
   // ----- Topic 操作 -----
   const openAddTopic = (type: TopicType) => {
@@ -316,85 +467,42 @@ export default function ManagePairsPage() {
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {tabTopics.map((topic) => {
-              const isActive = topic.id === activeTopicId
-              const isRenaming = renamingId === topic.id
-              const itemCount =
-                topic.type === 'pairs'
-                  ? topic.pairs.length
-                  : topic.type === 'texts'
-                    ? topic.texts.length
-                    : topic.sentences.length
-              return (
-                <div
-                  key={topic.id}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors',
-                    isActive
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {isRenaming ? (
-                    <>
-                      <Input
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void confirmRename()
-                          if (e.key === 'Escape') setRenamingId(null)
-                        }}
-                        className="h-6 w-32 px-1 text-sm"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void confirmRename()}
-                        className="text-primary hover:text-primary/80"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRenamingId(null)}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTopicId(topic.id)}
-                        className="font-medium"
-                      >
-                        {topic.name}
-                      </button>
-                      <span className="text-xs opacity-60">({itemCount})</span>
-                      <button
-                        type="button"
-                        onClick={() => startRename(topic)}
-                        className="ml-1 text-muted-foreground hover:text-foreground"
-                        title="重命名"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      {tabTopics.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteTopic(topic)}
-                          className="text-muted-foreground hover:text-destructive"
-                          title="删除"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </>
-                  )}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleTopicDragEnd}
+            >
+              <SortableContext
+                items={tabTopics.map((t) => t.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {tabTopics.map((topic) => (
+                    <SortableTopicChip
+                      key={topic.id}
+                      topic={topic}
+                      isActive={topic.id === activeTopicId}
+                      isRenaming={renamingId === topic.id}
+                      renameValue={renameValue}
+                      setRenameValue={setRenameValue}
+                      confirmRename={() => void confirmRename()}
+                      cancelRename={() => setRenamingId(null)}
+                      itemCount={
+                        topic.type === 'pairs'
+                          ? topic.pairs.length
+                          : topic.type === 'texts'
+                            ? topic.texts.length
+                            : topic.sentences.length
+                      }
+                      canDelete={tabTopics.length > 1}
+                      onActivate={() => setActiveTopicId(topic.id)}
+                      onStartRename={() => startRename(topic)}
+                      onDelete={() => void handleDeleteTopic(topic)}
+                    />
+                  ))}
                 </div>
-              )
-            })}
+              </SortableContext>
+            </DndContext>
           </div>
         </div>
 

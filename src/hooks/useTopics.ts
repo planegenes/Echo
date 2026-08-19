@@ -11,6 +11,7 @@ import {
   activeSentencesTopicIdAtom,
   persistTopic,
   deleteTopic,
+  reorderTopics as reorderTopicsAtom,
 } from '@/store/atoms'
 import { uid } from '@/lib/utils'
 
@@ -40,6 +41,8 @@ export function useTopics() {
         pairs: [],
         texts: [],
         sentences: [],
+        // 排到当前末尾
+        order: topics.length,
       }
       await persistTopic(topic)
       if (type === 'pairs') setActivePairsTopicId(topic.id)
@@ -47,7 +50,7 @@ export function useTopics() {
       else setActiveSentencesTopicId(topic.id)
       return topic
     },
-    [setActivePairsTopicId, setActiveTextsTopicId, setActiveSentencesTopicId],
+    [topics.length, setActivePairsTopicId, setActiveTextsTopicId, setActiveSentencesTopicId],
   )
 
   const renameTopic = useCallback(
@@ -66,6 +69,14 @@ export function useTopics() {
     [],
   )
 
+  /** 拖拽排序：接收全部专题的新顺序并持久化 */
+  const reorderTopics = useCallback(
+    async (ordered: Topic[]): Promise<void> => {
+      await reorderTopicsAtom(ordered)
+    },
+    [],
+  )
+
   return {
     topics,
     activePairsTopic,
@@ -80,5 +91,6 @@ export function useTopics() {
     addTopic,
     renameTopic,
     removeTopic,
+    reorderTopics,
   }
 }

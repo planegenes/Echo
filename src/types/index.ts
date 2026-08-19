@@ -33,6 +33,10 @@ export interface PairItem {
   stats: PairStats
   /** 熟练度（默认 0，范围 -20~20）：答对 +0.5、答错 -0.8，越高出题越少 */
   mastery?: number
+  /** 连续答对次数（不显示，用于熟练度增量 ×1.1^x） */
+  correctStreak?: number
+  /** 连续答错次数（不显示，用于熟练度增量 ×1.1^x） */
+  wrongStreak?: number
   /** 题目级 AI 模型覆盖（为空则使用 settings.defaultAiModel） */
   aiModel?: string
 }
@@ -44,6 +48,10 @@ export interface TextItem {
   content: string
   /** 熟练度（默认 0，范围 -20~20）：答对 +0.5、答错 -0.8，越高出题越少 */
   mastery?: number
+  /** 连续答对次数（不显示，用于熟练度增量 ×1.1^x） */
+  correctStreak?: number
+  /** 连续答错次数（不显示，用于熟练度增量 ×1.1^x） */
+  wrongStreak?: number
   /** 题目级 AI 模型覆盖（为空则使用 settings.defaultAiModel） */
   aiModel?: string
 }
@@ -81,6 +89,10 @@ export interface SentenceItem {
   words: string[]
   /** 熟练度（默认 0，范围 -20~20）：答对 +0.5、答错 -0.8，越高出题越少 */
   mastery?: number
+  /** 连续答对次数（不显示，用于熟练度增量 ×1.1^x） */
+  correctStreak?: number
+  /** 连续答错次数（不显示，用于熟练度增量 ×1.1^x） */
+  wrongStreak?: number
   /** 题目级 AI 模型覆盖（为空则使用 settings.defaultAiModel） */
   aiModel?: string
 }
@@ -96,6 +108,8 @@ export interface Topic {
   pairs: PairItem[]
   texts: TextItem[]
   sentences: SentenceItem[]
+  /** 专题排序权重（题库管理拖拽排序用，越小越靠前） */
+  order?: number
 }
 
 // ===== 组句 / 翻译 会话状态 =====

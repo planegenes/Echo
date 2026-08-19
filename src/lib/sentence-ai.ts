@@ -29,7 +29,10 @@ export async function segmentSentence(
   const system =
     '你是一个分词助手，负责将句子切分为可重新排列的单词/词组单元。' +
     '保留有意义的词组，丢弃标点符号。只返回 JSON，结构为 {"words":["单词1","单词2"]}。' +
-    'words 必须是字符串数组，按原句顺序排列，拼接后应能还原原句（忽略标点）。'
+    'words 必须是字符串数组，按原句顺序排列，拼接后应能还原原句（忽略标点）。' +
+    '原句可能包含注音（Ruby）标记：base 与读音 ruby 用 ^ 分隔（单字符如 東^と，多字符 base 或 ruby 用花括号包裹，如 排^{paai}、{排骨}^{paai gwat}）。' +
+    '注音应尽量按单个汉字逐字标注（如 排^{paai}骨^{gwat}），仅当词的整体读音无法逐字拆分时（如日语 {今日}^{きょう}）才用整体注音。' +
+    '注音标记整体是一个不可拆分的词单元，分词时不要把 base 与 ruby 拆开，如 排^{paai}骨^{gwat} 应原样作为一个 word 返回。'
 
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
@@ -81,6 +84,8 @@ export async function judgeTranslation(
   const system =
     '你是一个语言学习助手，负责判断用户的翻译/组句答案是否与标准答案语义一致。' +
     '允许语序差异、同义词、大小写、标点差异视为正确；但核心含义必须一致。' +
+    '标准答案可能包含注音（Ruby）标记（写法如 東^と 或 {東京}^{とうきょう}，^ 分隔 base 与读音）。' +
+    '注音仅是读音提示，不影响语义：判断时请忽略注音标记，只比较 base 部分的实际含义。' +
     '只返回 JSON，结构为 {"correct":boolean,"reason":"简短理由"}。'
 
   const user =

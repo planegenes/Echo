@@ -33,12 +33,16 @@ const pairSchema = z.object({
   right: contentArraySchema,
   stats: pairStatsSchema,
   mastery: z.number().optional(),
+  correctStreak: z.number().optional(),
+  wrongStreak: z.number().optional(),
 })
 
 const textSchema = z.object({
   id: z.string().min(1),
   content: z.string().min(1),
   mastery: z.number().optional(),
+  correctStreak: z.number().optional(),
+  wrongStreak: z.number().optional(),
 })
 
 const sentenceSchema = z.object({
@@ -47,6 +51,8 @@ const sentenceSchema = z.object({
   hint: z.string().default(''),
   words: z.array(z.string()).default([]),
   mastery: z.number().optional(),
+  correctStreak: z.number().optional(),
+  wrongStreak: z.number().optional(),
 })
 
 const topicSchema = z.object({
@@ -56,6 +62,7 @@ const topicSchema = z.object({
   pairs: z.array(pairSchema).default([]),
   texts: z.array(textSchema).default([]),
   sentences: z.array(sentenceSchema).default([]),
+  order: z.number().optional(),
 })
 
 const pointsStateSchema = z.object({
@@ -115,6 +122,7 @@ export function parseSnapshot(input: unknown): ParseResult {
       id: t.id,
       name: t.name,
       type: t.type,
+      order: t.order,
       pairs: t.pairs.map((p) => ({
         ...p,
         stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
@@ -126,6 +134,8 @@ export function parseSnapshot(input: unknown): ParseResult {
         hint: s.hint ?? '',
         words: s.words.slice(),
         mastery: s.mastery,
+        correctStreak: s.correctStreak,
+        wrongStreak: s.wrongStreak,
       })),
     }))
   } else {
@@ -166,6 +176,7 @@ export function buildSnapshot(
       id: t.id,
       name: t.name,
       type: t.type,
+      order: t.order,
       pairs: t.pairs.map((p) => ({
         ...p,
         stats: { lr: p.stats?.lr ?? 0, rl: p.stats?.rl ?? 0 },
@@ -177,6 +188,8 @@ export function buildSnapshot(
         hint: s.hint,
         words: s.words.slice(),
         mastery: s.mastery,
+        correctStreak: s.correctStreak,
+        wrongStreak: s.wrongStreak,
       })),
     })),
     points,

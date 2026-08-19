@@ -157,11 +157,17 @@ export function useChoiceEngine() {
       const key = direction === 'askLeft' ? 'lr' : 'rl'
       const cur = pair.stats?.[key] ?? 0
       const next = patch(cur)
-      // 熟练度：答对 +0.5，答错 -0.8
-      const mastery =
-        correct === undefined ? masteryOf(pair) : nextMastery(pair, correct)
+      // 熟练度：增量 × 1.1^连对/连错次数，同时更新连对连错计数
+      const nm =
+        correct === undefined
+          ? {
+              mastery: masteryOf(pair),
+              correctStreak: pair.correctStreak ?? 0,
+              wrongStreak: pair.wrongStreak ?? 0,
+            }
+          : nextMastery(pair, correct)
       const stats = { ...pair.stats, [key]: next } as PairItem['stats']
-      void persistPair({ ...pair, stats, mastery })
+      void persistPair({ ...pair, stats, ...nm })
     },
     [deck],
   )
@@ -312,8 +318,8 @@ export function useChoiceEngine() {
       for (const pid of pairIds) {
         const pair = deck.find((p) => p.id === pid)
         if (!pair) continue
-        const mastery = nextMastery(pair, false)
-        void persistPair({ ...pair, mastery })
+        const nm = nextMastery(pair, false)
+        void persistPair({ ...pair, ...nm })
       }
       return {
         ...prev,

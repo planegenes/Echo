@@ -48,6 +48,11 @@ const SENTENCES_SYSTEM =
   '每道题包含一个标准答案句子(answer)、一个提示(hint)、以及将答案切分后的单词数组(words)。' +
   'words 中的单词按原句顺序拼接应能还原 answer（忽略标点符号）。' +
   '切分粒度应为有意义的词或词组，不要切成单字。' +
+  '支持注音（Ruby）标记：base 与读音 ruby 用 ^ 分隔，注音标记可作为 answer 与 words 的一部分。' +
+  '注音写法：单字符如 東^と，多字符 base 或 ruby 需用花括号包裹，如 排^{paai} 或 {排骨}^{paai gwat}。' +
+  '注音应尽量按单个汉字/字符逐字标注：例如 排骨 带拼音应写成 排^{paai}骨^{gwat}，而不是合并为 {排骨}^{paai gwat}。' +
+  '仅当词的整体读音无法逐字拆分时（如日语的 今日^{きょう}）才使用整体注音 {今日}^{きょう}。' +
+  '注音标记整体视为一个不可拆分的词单元（不要把 base 与 ruby 拆成两个单词），例如 排^{paai}骨^{gwat} 应整体作为一个 word。' +
   '只返回 JSON，结构为 {"sentences":[{"answer":"标准答案","hint":"提示文本","words":["单词1","单词2"]}]}。' +
   '生成的题目应当准确、有意义、避免重复。'
 
@@ -85,10 +90,22 @@ export function parseJsonObject(raw: string): Record<string, unknown> {
   } catch {
     // 兼容部分模型可能输出 markdown 代码块
     const match = raw.match(/\{[\s\S]*\}/)
-    if (!match) throw new AiResponseError('AI 返回不是合法 JSON')
+    if (!match) {
+      console.error(
+        '[AI 解析失败] 返回内容不是合法 JSON：',
+        raw.slice(0, 2000),
+        `（总长度 ${raw.length}）`,
+      )
+      throw new AiResponseError('AI 返回不是合法 JSON')
+    }
     obj = JSON.parse(match[0])
   }
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    console.error(
+      '[AI 解析失败] 返回内容不是 JSON 对象：',
+      raw.slice(0, 2000),
+      `（总长度 ${raw.length}）`,
+    )
     throw new AiResponseError('AI 返回不是 JSON 对象')
   }
   return obj as Record<string, unknown>

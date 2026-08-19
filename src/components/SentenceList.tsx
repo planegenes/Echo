@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { MasteryControl } from '@/components/MasteryControl'
 import { Plus, Pencil, Trash2, Search, Puzzle, Sparkles, Wand2 } from 'lucide-react'
+import { ContentRenderer } from '@/components/ContentRenderer'
 import { cn } from '@/lib/utils'
 
 export interface SentenceListProps {
@@ -140,9 +141,14 @@ export function SentenceList({
                     {s.words.slice(0, 8).map((w, i) => (
                       <span
                         key={i}
-                        className="rounded bg-muted/40 px-1.5 py-0.5 text-xs"
+                        className="rounded border bg-muted/40 px-1.5 py-0.5 text-sm"
                       >
-                        {w}
+                        <ContentRenderer
+                          content={{
+                            format: w.includes('^') ? 'ruby' : 'text',
+                            value: w,
+                          }}
+                        />
                       </span>
                     ))}
                     {s.words.length > 8 && (

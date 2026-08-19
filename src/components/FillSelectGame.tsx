@@ -8,76 +8,22 @@ import {
   KeyboardSensor,
   useSensor,
   useSensors,
-  useDroppable,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
-  type SortingStrategy,
 } from '@dnd-kit/sortable'
+import { gapAwareHorizontalStrategy } from '@/lib/dnd'
 import { useFillSelectEngine } from '@/hooks/useFillSelectEngine'
 import { TextRenderer } from '@/components/TextRenderer'
 import { BlankSlot } from '@/components/BlankSlot'
 import { WordOption } from '@/components/WordOption'
+import { OptionsPool } from '@/components/OptionsPool'
 import { FillResultPanel } from '@/components/FillResultPanel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
-
-/**
- * gap 感知的水平排序策略
- * 与 horizontalListSortingStrategy 的区别：被挤开项的位移统一用
- * 「拖动选项宽度 + 拖动选项与其相邻项的实际 gap」计算。
- * 选项坍缩时用负 margin 抵消了与后一项的 gap（测量为 0），位移随之归零，
- * 与实际布局一致；全宽时行为与 horizontalListSortingStrategy 相同。
- */
-const gapAwareHorizontalStrategy: SortingStrategy = ({
-  rects,
-  activeIndex,
-  overIndex,
-  index,
-}) => {
-  if (activeIndex === overIndex) return null
-  const activeRect = rects[activeIndex]
-  if (!activeRect) return null
-
-  // 拖动项与其相邻项的实际 gap（坍缩抵消后为 0）
-  let gap = 0
-  if (activeIndex < index) {
-    const next = rects[activeIndex + 1]
-    if (next) gap = next.left - (activeRect.left + activeRect.width)
-  } else if (activeIndex > index) {
-    const prev = rects[activeIndex - 1]
-    if (prev) gap = activeRect.left - (prev.left + prev.width)
-  }
-
-  if (index === activeIndex) {
-    const overRect = rects[overIndex]
-    if (!overRect) return null
-    return {
-      x:
-        activeIndex < overIndex
-          ? overRect.left +
-            overRect.width -
-            activeRect.left -
-            activeRect.width
-          : overRect.left - activeRect.left,
-      y: 0,
-      scaleX: 1,
-      scaleY: 1,
-    }
-  }
-
-  if (index > activeIndex && index <= overIndex) {
-    return { x: -activeRect.width - gap, y: 0, scaleX: 1, scaleY: 1 }
-  }
-  if (index < activeIndex && index >= overIndex) {
-    return { x: activeRect.width + gap, y: 0, scaleX: 1, scaleY: 1 }
-  }
-  return { x: 0, y: 0, scaleX: 1, scaleY: 1 }
-}
 
 /**
  * 阻止浏览器默认 touchmove 行为（如 Android Edge 下拉刷新）。
@@ -357,48 +303,5 @@ export function FillSelectGame({ textId }: FillSelectGameProps) {
         )}
       </CardContent>
     </Card>
-  )
-}
-
-/**
- * 候选区容器，作为 droppable（id='pool'）让用户可把已填入的选项拖回这里释放
- * - 边框高亮由父组件的几何判定 isOverPool 驱动（稳定，不闪烁）
- * - 从答题区拖回时显示虚线占位提示
- */
-function OptionsPool({
-  children,
-  isOverPool,
-  showDropHint,
-  ref,
-}: {
-  children: React.ReactNode
-  isOverPool: boolean
-  showDropHint: boolean
-  ref?: React.Ref<HTMLDivElement>
-}) {
-  const { setNodeRef } = useDroppable({ id: 'pool' })
-  const setRefs = useCallback(
-    (node: HTMLDivElement | null) => {
-      setNodeRef(node)
-      if (typeof ref === 'function') ref(node)
-      else if (ref) ref.current = node
-    },
-    [ref, setNodeRef],
-  )
-  return (
-    <div
-      ref={setRefs}
-      className={cn(
-        'rounded-lg border p-3 transition-colors',
-        isOverPool && 'border-primary bg-primary/5',
-      )}
-    >
-      {children}
-      {showDropHint && (
-        <div className="mt-3 flex items-center justify-center rounded-md border border-dashed border-primary/50 bg-primary/5 py-2.5 text-sm text-muted-foreground">
-          松开以放回选项区
-        </div>
-      )}
-    </div>
   )
 }

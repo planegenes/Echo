@@ -288,6 +288,21 @@ export async function loadPersistedData(): Promise<void> {
     for (const t of topics) await dbPutTopic(t)
   }
 
+  // 迁移：为缺少 order 的旧专题按当前顺序补齐排序权重，并统一按 order 排序
+  let needsOrderMigration = false
+  topics = topics.map((t, i) => {
+    if (t.order === undefined) {
+      needsOrderMigration = true
+      return { ...t, order: i }
+    }
+    return t
+  })
+  if (needsOrderMigration) {
+    await dbClearTopics()
+    for (const t of topics) await dbPutTopic(t)
+  }
+  topics.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
   if (topics.length === 0) {
     // 从旧 pairs/texts 表迁移，或加载默认题库
     const [oldPairs, oldTexts] = await Promise.all([
@@ -495,6 +510,14 @@ export async function persistTopic(topic: Topic): Promise<void> {
   storeSet(topicsAtom, next)
 }
 
+/** 按给定顺序重排全部专题并持久化（题库管理拖拽排序） */
+export async function reorderTopics(ordered: Topic[]): Promise<void> {
+  const next = ordered.map((t, i) => ({ ...t, order: i }))
+  await dbClearTopics()
+  for (const t of next) await dbPutTopic(t)
+  storeSet(topicsAtom, next)
+}
+
 /** 删除专题（至少保留一个同类型专题） */
 export async function deleteTopic(id: string): Promise<void> {
   const cur = internalStore.get(topicsAtom)
@@ -633,6 +656,8 @@ export async function resetPairStats(id: string): Promise<void> {
     ...pair,
     stats: { lr: 0, rl: 0 } as PairStats,
     mastery: 0,
+    correctStreak: 0,
+    wrongStreak: 0,
   }
   await persistPair(next)
 }
@@ -661,7 +686,12 @@ export async function resetPairMastery(id: string): Promise<void> {
   if (!topic) return
   const pair = topic.pairs.find((p) => p.id === id)
   if (!pair) return
-  await persistPair({ ...pair, mastery: 0 })
+  await persistPair({
+    ...pair,
+    mastery: 0,
+    correctStreak: 0,
+    wrongStreak: 0,
+  })
 }
 
 /** 批量替换活动配对专题的 pair（用于导入/恢复默认） */
@@ -756,7 +786,12 @@ export async function resetTextMastery(id: string): Promise<void> {
   if (!topic) return
   const text = topic.texts.find((t) => t.id === id)
   if (!text) return
-  await persistText({ ...text, mastery: 0 })
+  await persistText({
+    ...text,
+    mastery: 0,
+    correctStreak: 0,
+    wrongStreak: 0,
+  })
 }
 
 // ----- 跨专题查找文本 -----
@@ -773,17 +808,21 @@ export function findTextInTopics(
   return null
 }
 
-/** 按 id 在所有专题中更新 text 的熟练度（不依赖活动专题，供游戏判题后调用） */
+/** 按 id 在所有专题中更新 text 的熟练度与连对/连错（不依赖活动专题，供游戏判题后调用） */
 export async function updateTextMasteryById(
   id: string,
-  mastery: number,
+  patch: {
+    mastery: number
+    correctStreak: number
+    wrongStreak: number
+  },
 ): Promise<void> {
   const topics = internalStore.get(topicsAtom)
   const topic = topics.find((t) => t.texts.some((x) => x.id === id))
   if (!topic) return
   await persistTopic({
     ...topic,
-    texts: topic.texts.map((t) => (t.id === id ? { ...t, mastery } : t)),
+    texts: topic.texts.map((t) => (t.id === id ? { ...t, ...patch } : t)),
   })
 }
 
@@ -869,7 +908,12 @@ export async function resetSentenceMastery(id: string): Promise<void> {
   if (!topic) return
   const sentence = topic.sentences.find((s) => s.id === id)
   if (!sentence) return
-  await persistSentence({ ...sentence, mastery: 0 })
+  await persistSentence({
+    ...sentence,
+    mastery: 0,
+    correctStreak: 0,
+    wrongStreak: 0,
+  })
 }
 
 // ----- 跨专题查找组句题目 -----
@@ -886,10 +930,14 @@ export function findSentenceInTopics(
   return null
 }
 
-/** 按 id 在所有专题中更新 sentence 的熟练度（不依赖活动专题，供游戏判题后调用） */
+/** 按 id 在所有专题中更新 sentence 的熟练度与连对/连错（不依赖活动专题，供游戏判题后调用） */
 export async function updateSentenceMasteryById(
   id: string,
-  mastery: number,
+  patch: {
+    mastery: number
+    correctStreak: number
+    wrongStreak: number
+  },
 ): Promise<void> {
   const topics = internalStore.get(topicsAtom)
   const topic = topics.find((t) => t.sentences.some((x) => x.id === id))
@@ -897,7 +945,7 @@ export async function updateSentenceMasteryById(
   await persistTopic({
     ...topic,
     sentences: topic.sentences.map((s) =>
-      s.id === id ? { ...s, mastery } : s,
+      s.id === id ? { ...s, ...patch } : s,
     ),
   })
 }
