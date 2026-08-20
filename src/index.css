@@ -149,11 +149,13 @@
   font-size: 1.1em;
 }
 
-/* Ruby 注音容器：rt 略小于 base */
+/* Ruby 注音容器：rt 略小于 base，左右留出 2px 边距 */
 .ruby-inline rt {
   font-size: 0.75em;
   font-weight: 400;
-  line-height: 1;
+  line-height: 1.2;
+  margin-left: 2px;
+  margin-right: 2px;
 }
 
 /* 全角空格撑开空白槽宽度的辅助类 */
