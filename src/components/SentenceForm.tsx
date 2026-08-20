@@ -48,6 +48,12 @@ function marksFromWords(answer: string, words: string[]): Set<number> {
   return marks
 }
 
+/** 判断字符串是否纯标点/空白（分词预览时隐藏） */
+function isPurePunct(s: string): boolean {
+  if (!s) return false
+  return Array.from(s).every((ch) => isPunctOrSpace(ch))
+}
+
 /**
  * 组句题目编辑表单
  * - 上方输入框：标准答案
@@ -233,31 +239,40 @@ export function SentenceForm({ initial, onSubmit, onCancel }: SentenceFormProps)
             </div>
           ) : (
             <div ref={rowRef} className="inline-flex flex-wrap gap-x-[6px]">
-              {units.map((u, i) => (
-                <span
-                  key={i}
-                  data-unit
-                  className="relative inline-block text-center"
-                  style={{ minWidth: '1em' }}
-                >
-                  {u === ' ' ? (
-                    <span className="text-muted-foreground/50">·</span>
-                  ) : (
-                    <ContentRenderer
-                      content={{
-                        format: u.includes('^') ? 'ruby' : 'text',
-                        value: u,
-                      }}
-                    />
-                  )}
-                  {/* 切分线：粗 3px，落在间隔正中（间隔 6px，竖线左移 1.5px 后中心与间隔中心对齐） */}
-                  {marks.has(i + 1) ? (
-                    <span className="absolute left-[calc(100%+1.5px)] top-0 bottom-0 w-[3px] bg-primary" />
-                  ) : hoverGap === i + 1 && i + 1 < N ? (
-                    <span className="absolute left-[calc(100%+1.5px)] top-1 bottom-1 w-[3px] border-l-[3px] border-dashed border-primary/60" />
-                  ) : null}
-                </span>
-              ))}
+              {units.map((u, i) => {
+                // 纯标点（非空格）不显示，但保留占位以维持切分线索引与字符定位正确
+                const isSpace = u === ' '
+                const isHiddenPunct =
+                  u.length === 1 && isPunctOrSpace(u) && !isSpace
+                return (
+                  <span
+                    key={i}
+                    data-unit
+                    className="relative inline-block text-center"
+                    style={{
+                      minWidth: '1em',
+                      ...(isHiddenPunct ? { visibility: 'hidden' } : {}),
+                    }}
+                  >
+                    {isSpace ? (
+                      <span className="text-muted-foreground/50">·</span>
+                    ) : (
+                      <ContentRenderer
+                        content={{
+                          format: u.includes('^') ? 'ruby' : 'text',
+                          value: u,
+                        }}
+                      />
+                    )}
+                    {/* 切分线：粗 3px，落在间隔正中（间隔 6px，竖线左移 1.5px 后中心与间隔中心对齐） */}
+                    {marks.has(i + 1) ? (
+                      <span className="absolute left-[calc(100%+1.5px)] top-0 bottom-0 w-[3px] bg-primary" />
+                    ) : hoverGap === i + 1 && i + 1 < N ? (
+                      <span className="absolute left-[calc(100%+1.5px)] top-1 bottom-1 w-[3px] border-l-[3px] border-dashed border-primary/60" />
+                    ) : null}
+                  </span>
+                )
+              })}
             </div>
           )}
         </div>
@@ -306,28 +321,34 @@ export function SentenceForm({ initial, onSubmit, onCancel }: SentenceFormProps)
           <p className="text-xs text-destructive">AI 分词失败：{aiError}</p>
         )}
 
-        {/* 分词结果预览 */}
+        {/* 分词结果预览：过滤纯标点词，不显示标点符号 */}
         {words.length > 0 ? (
-          <div className="rounded-md border bg-card p-3">
-            <div className="mb-2 text-xs text-muted-foreground">
-              分词结果（{words.length} 个单词）
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {words.map((w, i) => (
-                <span
-                  key={i}
-                  className="rounded-md border bg-muted/40 px-2 py-0.5 text-sm"
-                >
-                  <ContentRenderer
-                    content={{
-                      format: w.includes('^') ? 'ruby' : 'text',
-                      value: w,
-                    }}
-                  />
-                </span>
-              ))}
-            </div>
-          </div>
+          (() => {
+            const displayWords = words.filter((w) => !isPurePunct(w))
+            if (displayWords.length === 0) return null
+            return (
+              <div className="rounded-md border bg-card p-3">
+                <div className="mb-2 text-xs text-muted-foreground">
+                  分词结果（{displayWords.length} 个单词）
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {displayWords.map((w, i) => (
+                    <span
+                      key={i}
+                      className="rounded-md border bg-muted/40 px-2 py-0.5 text-sm"
+                    >
+                      <ContentRenderer
+                        content={{
+                          format: w.includes('^') ? 'ruby' : 'text',
+                          value: w,
+                        }}
+                      />
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()
         ) : (
           N > 0 && (
             <p className="text-xs text-muted-foreground">
