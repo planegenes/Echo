@@ -144,7 +144,7 @@ function preserveProgress(
       aiModel: (orig as any).aiModel,
       stats: (orig as any).stats ?? (item as any).stats,
     } as PairItem | TextItem | SentenceItem
-  })
+  }) as PairItem[] | TextItem[] | SentenceItem[]
 }
 
 /** 将 AI 返回的原始 JSON 解析为题目数组（与生成功能同一套规范化规则） */
