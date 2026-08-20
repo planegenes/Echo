@@ -100,7 +100,14 @@ export function SentenceList({
             >
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="flex-1 space-y-1">
-                  <p className="break-words text-sm font-medium">{s.answer}</p>
+                  <p className="break-words text-sm font-medium">
+                    <ContentRenderer
+                      content={{
+                        format: s.answer.includes('^') ? 'ruby' : 'text',
+                        value: s.answer,
+                      }}
+                    />
+                  </p>
                   {s.hint && (
                     <p className="break-words text-xs text-muted-foreground">
                       提示：{s.hint}
