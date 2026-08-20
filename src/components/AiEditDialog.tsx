@@ -78,7 +78,7 @@ function buildSystem(topicType: TopicType): string {
       '你是一个题库修改助手。用户会提供当前配对题库的 JSON 和修改要求，' +
       '请按要求修改题目（可增删改），返回修改后的完整题库 JSON。' +
       '结构必须与输入一致：{"pairs":[{"left":[{"value":"内容","format":"text"}],"right":[{"value":"内容","format":"text"}]}]}。' +
-      'format 可选 "text"（默认）、"latex"、"ruby"。注音写法：单字符如 東^と，多字符 base 或 ruby 需用花括号包裹，如 {東京}^{とうきょう}。' +
+      'format 可选 "text"（默认）、"latex"、"ruby"。注音写法：base 与读音 ruby 都用花括号包裹并以 ^ 分隔，如 {東}^{と}、{東京}^{とうきょう}。' +
       '未要求修改的题目保持原样。'
     )
   }
@@ -95,11 +95,56 @@ function buildSystem(topicType: TopicType): string {
     '请按要求修改题目（可增删改），返回修改后的完整题库 JSON。' +
     '结构必须与输入一致：{"sentences":[{"answer":"标准答案","hint":"提示","words":["单词1","单词2"]}]}。' +
     '支持注音（Ruby）标记：base 与读音 ruby 用 ^ 分隔。' +
-    '注音写法：单字符如 東^と，多字符 base 或 ruby 需用花括号包裹，如 排^{paai}、{排骨}^{paai gwat}。' +
+    '注音写法：base 与读音 ruby 都用花括号包裹并以 ^ 分隔，如 {排}^{paai}、{排骨}^{paai gwat}。' +
     '注音应尽量按单个汉字逐字标注（如 排^{paai}骨^{gwat}），仅当词的整体读音无法逐字拆分时（如日语 {今日}^{きょう}）才用整体注音。' +
     '注音标记整体视为一个不可拆分的词单元——words 中不要把 base 与 ruby 拆成两个单词，例如 排^{paai}骨^{gwat} 应整体作为一个 word。' +
     '未要求修改的题目保持原样。'
   )
+}
+
+/**
+ * 生成内容匹配键，用于在 AI 修改后匹配原题目以继承学习进度
+ */
+function contentKey(
+  topicType: TopicType,
+  item: PairItem | TextItem | SentenceItem,
+): string {
+  if (topicType === 'pairs') {
+    const p = item as PairItem
+    const ser = (c: { value: string; format: string }[]) =>
+      c.map((x) => `${x.format}:${x.value}`).join('\x00')
+    return `${ser(p.left)}\x01${ser(p.right)}`
+  }
+  if (topicType === 'texts') return (item as TextItem).content
+  return (item as SentenceItem).answer
+}
+
+/**
+ * AI 修改后保留原题目的学习进度
+ * - 按内容匹配原题目，继承 id / mastery / stats / streaks / aiModel
+ * - 新增的题目（无匹配）保持 AI 返回的新 ID 和默认进度
+ */
+function preserveProgress<T extends PairItem | TextItem | SentenceItem>(
+  topicType: TopicType,
+  parsed: T[],
+  source: T[],
+): T[] {
+  const byKey = new Map<string, T>()
+  for (const s of source) byKey.set(contentKey(topicType, s), s)
+  return parsed.map((item) => {
+    const orig = byKey.get(contentKey(topicType, item))
+    if (!orig) return item
+    // 继承原题目的学习进度字段
+    return {
+      ...item,
+      id: (orig as any).id,
+      mastery: (orig as any).mastery,
+      correctStreak: (orig as any).correctStreak,
+      wrongStreak: (orig as any).wrongStreak,
+      aiModel: (orig as any).aiModel,
+      stats: (orig as any).stats ?? (item as any).stats,
+    } as T
+  })
 }
 
 /** 将 AI 返回的原始 JSON 解析为题目数组（与生成功能同一套规范化规则） */
@@ -298,10 +343,12 @@ export function AiEditDialog({
         setError('AI 未返回有效题目，请调整要求后重试')
         return
       }
+      // 保留原题目的学习进度（熟练度/答题统计/连对连错/模型覆盖）
+      const preserved = preserveProgress(topicType, parsed, items)
       setSteps((stack) => [...stack, snapshot])
       setLastRequest(messages)
       setHistory([...nextHistoryBase, { role: 'assistant', content: fullText }])
-      setResult(parsed)
+      setResult(preserved)
       if (mode !== 'regenerate') setPrompt('')
     } catch (e) {
       setError(e instanceof Error ? e.message : '修改失败')
