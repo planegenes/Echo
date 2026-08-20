@@ -508,6 +508,7 @@ export function SettingsForm({
           <ModelSelector
             value={form.defaultAiModel}
             onChange={(m) => patch({ defaultAiModel: m })}
+            onChangeProvider={(pid) => patch({ defaultAiProviderId: pid })}
             providers={form.aiProviders}
             placeholder="选择或输入默认模型"
           />

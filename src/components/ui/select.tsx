@@ -17,6 +17,8 @@ export interface SelectProps {
   placeholder?: string
   disabled?: boolean
   className?: string
+  /** 自定义选中匹配逻辑，默认按 opt.value === value 匹配 */
+  isSelected?: (opt: SelectOption, value: string) => boolean
 }
 
 /**
@@ -32,6 +34,7 @@ export function Select({
   placeholder = '请选择',
   disabled,
   className,
+  isSelected,
 }: SelectProps) {
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(-1)
@@ -39,7 +42,7 @@ export function Select({
   const listRef = useRef<HTMLUListElement | null>(null)
 
   const selectable = useMemo(() => options.filter((o) => !o.disabled), [options])
-  const selectedLabel = options.find((o) => o.value === value)?.label
+  const selectedLabel = options.find((o) => (isSelected ? isSelected(o, value) : o.value === value))?.label
 
   // 点击外部关闭
   useEffect(() => {
@@ -51,18 +54,10 @@ export function Select({
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
-  // 高亮项滚动可见
-  useEffect(() => {
-    if (!open || highlight < 0) return
-    const items = listRef.current?.children
-    const target = items?.[highlight] as HTMLElement | undefined
-    target?.scrollIntoView({ block: 'nearest' })
-  }, [open, highlight])
-
   const toggle = () => {
     if (disabled) return
     setOpen((o) => !o)
-    setHighlight(Math.max(0, selectable.findIndex((o) => o.value === value)))
+    setHighlight(Math.max(0, selectable.findIndex((o) => (isSelected ? isSelected(o, value) : o.value === value))))
   }
 
   const pick = (opt: SelectOption) => {
@@ -79,7 +74,7 @@ export function Select({
       e.preventDefault()
       if (!open) {
         setOpen(true)
-        setHighlight(Math.max(0, selectable.findIndex((o) => o.value === value)))
+        setHighlight(Math.max(0, selectable.findIndex((o) => (isSelected ? isSelected(o, value) : o.value === value))))
         return
       }
       const dir = e.key === 'ArrowDown' ? 1 : -1
@@ -147,7 +142,7 @@ export function Select({
               <ul role="group">
                 {g.items.map((opt) => {
                   const idx = selectable.indexOf(opt)
-                  const selected = opt.value === value
+                  const selected = isSelected ? isSelected(opt, value) : opt.value === value
                   return (
                     <li key={opt.value} role="none">
                       <button

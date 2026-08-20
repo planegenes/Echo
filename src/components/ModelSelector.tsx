@@ -11,6 +11,8 @@ export interface ModelSelectorProps {
   value: string
   /** 模型变更回调 */
   onChange: (model: string) => void
+  /** 模型变更时同步回调其所属供应商 id（用于保持默认供应商与模型一致） */
+  onChangeProvider?: (providerId: string) => void
   /** 用于获取模型列表的供应商 */
   providers: AiProvider[]
   /** 是否允许「使用默认」空选项（用于题目级覆盖） */
@@ -32,6 +34,7 @@ export interface ModelSelectorProps {
 export function ModelSelector({
   value,
   onChange,
+  onChangeProvider,
   providers,
   allowEmpty = false,
   emptyLabel = '使用默认',
@@ -90,38 +93,30 @@ export function ModelSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers])
 
-  // 合并「缓存的 provider.models」+「已拉取的 fetchedGroups」去重
+  // 合并「缓存的 provider.models」+「已拉取的 fetchedGroups」，仅同供应商内部去重
   const mergedGroups = useMemo(() => {
     const groups: { provider: AiProvider; models: string[] }[] = []
-    const seen = new Set<string>()
     for (const p of providers) {
-      if (p.models && p.models.length > 0) {
-        const models = p.models.filter((m) => {
-          if (seen.has(m)) return false
-          seen.add(m)
-          return true
-        })
-        if (models.length > 0) groups.push({ provider: p, models })
+      const models = [...(p.models ?? [])]
+      // 追加已拉取的同供应商模型
+      const fetched = fetchedGroups.find((g) => g.provider.id === p.id)
+      if (fetched) {
+        for (const m of fetched.models) {
+          if (!models.includes(m)) models.push(m)
+        }
       }
+      // 仅同供应商内部去重
+      const unique: string[] = []
+      const seen = new Set<string>()
+      for (const m of models) {
+        if (!seen.has(m)) { seen.add(m); unique.push(m) }
+      }
+      if (unique.length > 0) groups.push({ provider: p, models: unique })
     }
+    // fetchedGroups 中不在 providers 里的（兜底）
     for (const g of fetchedGroups) {
-      const existing = groups.find((mg) => mg.provider.id === g.provider.id)
-      if (existing) {
-        for (const m of g.models) {
-          if (!seen.has(m)) {
-            seen.add(m)
-            existing.models.push(m)
-          }
-        }
-      } else {
-        const filtered = g.models.filter((m) => {
-          if (seen.has(m)) return false
-          seen.add(m)
-          return true
-        })
-        if (filtered.length > 0) {
-          groups.push({ provider: g.provider, models: filtered })
-        }
+      if (!groups.find((mg) => mg.provider.id === g.provider.id)) {
+        groups.push({ provider: g.provider, models: [...g.models] })
       }
     }
     return groups
@@ -133,6 +128,14 @@ export function ModelSelector({
   )
   const hasModels = mergedGroups.length > 0
   const canRefresh = providers.length > 0 && !loading && !disabled
+
+  // 当前选中模型对应的唯一 compound value（providerId:modelName），
+  // 用于下拉精确匹配，避免不同供应商同名模型同时高亮
+  const compoundValue = useMemo(() => {
+    if (!value) return ''
+    const g = mergedGroups.find((grp) => grp.models.includes(value))
+    return g ? `${g.provider.id}:${value}` : value
+  }, [mergedGroups, value])
 
   // 当前值不在有效模型中时自动修正：有模型取第一个，无模型清空。
   // 避免下拉框显示不在列表中的无效默认模型（如初始的 gpt-4o-mini）
@@ -148,8 +151,16 @@ export function ModelSelector({
   return (
     <div className={cn('flex items-center gap-1', className)}>
       <Select
-        value={value}
-        onChange={onChange}
+        value={compoundValue}
+        onChange={(v) => {
+          // 从 compound value 中提取模型名与其所属供应商（格式: providerId:modelName）
+          const idx = v.indexOf(':')
+          const model = idx >= 0 ? v.slice(idx + 1) : v
+          const pid = idx >= 0 ? v.slice(0, idx) : ''
+          onChange(model)
+          if (pid && onChangeProvider) onChangeProvider(pid)
+        }}
+        isSelected={(opt, v) => opt.value === v}
         placeholder={placeholder ?? '请选择模型'}
         disabled={disabled || loading}
         className="flex-1"
@@ -160,10 +171,10 @@ export function ModelSelector({
           // 无模型且未选值时提供占位选项
           else if (!hasModels && !value)
             opts.push({ value: '', label: placeholder ?? '请选择模型' })
-          // 按供应商分组的模型列表
+          // 按供应商分组的模型列表（value 前缀供应商 id 确保唯一，精确匹配选中）
           for (const g of mergedGroups) {
             for (const m of g.models) {
-              opts.push({ value: m, label: m, group: g.provider.name })
+              opts.push({ value: `${g.provider.id}:${m}`, label: m, group: g.provider.name })
             }
           }
           return opts
