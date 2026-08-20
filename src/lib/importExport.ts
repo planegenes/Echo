@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { PairItem, SentenceItem, Snapshot, TextItem, Topic } from '@/types'
+import type { PairItem, SentenceItem, Snapshot, TextItem, Topic, TopicType } from '@/types'
 import type { PointsState } from '@/store/points'
 import type { DailyStreakState, DayLogs } from '@/lib/dailyStreak'
 import { uid } from './utils'
@@ -259,6 +259,26 @@ export async function readSnapshotFromClipboard(): Promise<ParseResult> {
   }
   const text = await navigator.clipboard.readText()
   return parseSnapshot(JSON.parse(text))
+}
+
+/**
+ * 解析导入 JSON 并提取第一个与指定类型匹配的专题（用于「导入当前专题」）
+ * - 兼容整库快照（topics 数组）与旧版 pairs/texts 顶层格式
+ * - 自动为缺失 id 的条目补 id
+ */
+export function parseTopicSnapshot(
+  input: unknown,
+  type: TopicType,
+): { ok: true; topic: Topic } | { ok: false; error: string } {
+  const result = parseSnapshot(input)
+  if (!result.ok || !result.data) {
+    return { ok: false, error: result.error ?? '文件格式无效' }
+  }
+  const topic = result.data.topics.find((t) => t.type === type)
+  if (!topic) {
+    return { ok: false, error: '文件中没有与当前专题类型匹配的题库数据' }
+  }
+  return { ok: true, topic: ensureIds({ topics: [topic] }).topics[0] }
 }
 
 /** 为导入的 pair/text/sentence/topic 补充缺失的 id */

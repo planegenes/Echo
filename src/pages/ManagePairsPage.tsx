@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   DndContext,
   PointerSensor,
@@ -36,15 +36,25 @@ import { useDeck } from '@/hooks/useDeck'
 import { useTexts } from '@/hooks/useTexts'
 import { useSentences } from '@/hooks/useSentences'
 import { useTopics } from '@/hooks/useTopics'
-import { replaceAllTopics } from '@/store/atoms'
+import { replaceAllTopics, persistTopic } from '@/store/atoms'
 import type { PairItem, SentenceItem, TextItem, Topic, TopicType } from '@/types'
 import { cn, uid } from '@/lib/utils'
+import {
+  buildSnapshot,
+  downloadSnapshot,
+  parseTopicSnapshot,
+} from '@/lib/importExport'
 import defaultPairs from '@/presets/default-pairs.json'
 import defaultTexts from '@/presets/default-texts.json'
 import defaultSentencesZh from '@/presets/default-sentences-zh.json'
 import defaultSentencesYue from '@/presets/default-sentences-yue.json'
 import defaultSentencesEn from '@/presets/default-sentences-en.json'
-import { Plus, FolderPlus, Pencil, Trash2, Check, X } from 'lucide-react'
+import { Plus, FolderPlus, Pencil, Trash2, Check, X, Download, Upload, AlertCircle, CheckCircle2 } from 'lucide-react'
+
+type Notice =
+  | { kind: 'success'; message: string }
+  | { kind: 'error'; message: string }
+  | null
 
 type TabKey = TopicType
 
@@ -195,6 +205,10 @@ export default function ManagePairsPage() {
   // 重命名 inline
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+
+  // 当前专题（题库）导入导出
+  const topicFileRef = useRef<HTMLInputElement>(null)
+  const [topicNotice, setTopicNotice] = useState<Notice>(null)
 
   const { topics } = topicsApi
   const tabTopics = topics.filter((t) => t.type === tab)
@@ -364,9 +378,58 @@ export default function ManagePairsPage() {
         ? textsApi.texts
         : sentencesApi.sentences
 
-  // ----- 导入导出 -----
-  const handleImport = async (newTopics: Topic[]) => {
-    await replaceAllTopics(newTopics)
+  // ----- 当前专题 导入导出 -----
+  /** 仅导出当前激活专题的数据为 JSON 文件 */
+  const handleExportActiveTopic = () => {
+    if (!activeTopic) return
+    const snapshot = buildSnapshot([activeTopic])
+    downloadSnapshot(snapshot, `echo-${activeTopic.name}.json`)
+    const count =
+      tab === 'pairs'
+        ? activeTopic.pairs.length
+        : tab === 'texts'
+          ? activeTopic.texts.length
+          : activeTopic.sentences.length
+    setTopicNotice({
+      kind: 'success',
+      message: `已导出专题「${activeTopic.name}」共 ${count} 道题目`,
+    })
+  }
+
+  /** 将导入文件中的同类型题库替换到当前专题（保留当前专题 id 与名称） */
+  const handleImportTopicFile = async (file: File) => {
+    if (!activeTopic) return
+    try {
+      const text = await file.text()
+      const result = parseTopicSnapshot(JSON.parse(text), activeTopic.type)
+      if (!result.ok) {
+        setTopicNotice({ kind: 'error', message: `导入失败：${result.error}` })
+        return
+      }
+      const imported = result.topic
+      const merged: Topic = {
+        ...activeTopic,
+        pairs: imported.pairs,
+        texts: imported.texts,
+        sentences: imported.sentences,
+      }
+      await persistTopic(merged)
+      const count =
+        tab === 'pairs'
+          ? merged.pairs.length
+          : tab === 'texts'
+            ? merged.texts.length
+            : merged.sentences.length
+      setTopicNotice({
+        kind: 'success',
+        message: `已导入 ${count} 道题目到专题「${merged.name}」`,
+      })
+    } catch (err) {
+      setTopicNotice({
+        kind: 'error',
+        message: `导入失败：${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
   }
 
   const handleRestoreDefaults = async () => {
@@ -453,19 +516,78 @@ export default function ManagePairsPage() {
 
         {/* 专题管理区 */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-medium">
               {tab === 'pairs'
                 ? '配对专题'
                 : tab === 'texts'
                   ? '填空专题'
                   : '组句专题'}
+              {activeTopic && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  当前：{activeTopic.name}
+                </span>
+              )}
             </span>
-            <Button variant="outline" size="sm" onClick={() => openAddTopic(tab)}>
-              <FolderPlus className="h-4 w-4" />
-              新增专题
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!activeTopic}
+                onClick={handleExportActiveTopic}
+                title="仅导出当前激活的专题"
+              >
+                <Download className="h-4 w-4" />
+                导出当前题库
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!activeTopic}
+                onClick={() => topicFileRef.current?.click()}
+                title="仅导入到当前激活的专题（覆盖其内容）"
+              >
+                <Upload className="h-4 w-4" />
+                导入当前题库
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openAddTopic(tab)}
+              >
+                <FolderPlus className="h-4 w-4" />
+                新增专题
+              </Button>
+            </div>
           </div>
+          <input
+            ref={topicFileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void handleImportTopicFile(f)
+              e.target.value = ''
+            }}
+          />
+          {topicNotice && (
+            <div
+              className={
+                'flex items-start gap-2 rounded-md border px-3 py-2 text-sm ' +
+                (topicNotice.kind === 'success'
+                  ? 'border-success/40 bg-success/10 text-success'
+                  : 'border-destructive/40 bg-destructive/10 text-destructive')
+              }
+            >
+              {topicNotice.kind === 'success' ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4" />
+              ) : (
+                <AlertCircle className="mt-0.5 h-4 w-4" />
+              )}
+              <span>{topicNotice.message}</span>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <DndContext
               sensors={sensors}
@@ -553,7 +675,7 @@ export default function ManagePairsPage() {
         {/* 导入导出 */}
         <ImportExportPanel
           topics={topics}
-          onImport={handleImport}
+          onImport={(newTopics) => replaceAllTopics(newTopics)}
           onRestoreDefaults={handleRestoreDefaults}
         />
       </div>
