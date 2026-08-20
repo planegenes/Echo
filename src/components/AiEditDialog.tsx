@@ -124,12 +124,12 @@ function contentKey(
  * - 按内容匹配原题目，继承 id / mastery / stats / streaks / aiModel
  * - 新增的题目（无匹配）保持 AI 返回的新 ID 和默认进度
  */
-function preserveProgress<T extends PairItem | TextItem | SentenceItem>(
+function preserveProgress(
   topicType: TopicType,
-  parsed: T[],
-  source: T[],
-): T[] {
-  const byKey = new Map<string, T>()
+  parsed: PairItem[] | TextItem[] | SentenceItem[],
+  source: PairItem[] | TextItem[] | SentenceItem[],
+): PairItem[] | TextItem[] | SentenceItem[] {
+  const byKey = new Map<string, PairItem | TextItem | SentenceItem>()
   for (const s of source) byKey.set(contentKey(topicType, s), s)
   return parsed.map((item) => {
     const orig = byKey.get(contentKey(topicType, item))
@@ -143,7 +143,7 @@ function preserveProgress<T extends PairItem | TextItem | SentenceItem>(
       wrongStreak: (orig as any).wrongStreak,
       aiModel: (orig as any).aiModel,
       stats: (orig as any).stats ?? (item as any).stats,
-    } as T
+    } as PairItem | TextItem | SentenceItem
   })
 }
 
