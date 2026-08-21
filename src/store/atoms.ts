@@ -165,6 +165,8 @@ export interface ChoiceSession {
   resolved: 'idle' | 'correct' | 'revealed'
   /** 是否通过「不会做」揭示答案（正确答案黄色高亮） */
   gaveUp?: boolean
+  /** 本题累计选错次数（最终答对时熟练度增量按 0.95^x 衰减） */
+  wrongCount?: number
 }
 
 export const choiceSessionAtom = atom<ChoiceSession | null>(null)

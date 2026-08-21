@@ -4,7 +4,15 @@ import { usePointsRecorder } from '@/hooks/usePoints'
 import type { Content, ContentFormat, PairItem } from '@/types'
 import { activeDeckAtom, persistPair, type ChoiceSession } from '@/store/atoms'
 import { clamp, randInt, sample, sampleN, shuffle, uid } from '@/lib/utils'
-import { masteryOf, nextMastery, sampleWeight } from '@/lib/weight'
+import {
+  MASTERY_CORRECT_BONUS,
+  MASTERY_STREAK_BASE,
+  clampMastery,
+  masteryDeltaAfterWrongs,
+  masteryOf,
+  nextMastery,
+  sampleWeight,
+} from '@/lib/weight'
 import type { ChoiceDirection } from '@/types'
 
 /**
@@ -151,21 +159,29 @@ export function useChoiceEngine() {
       direction: ChoiceDirection,
       patch: (cur: number) => number,
       correct?: boolean,
+      masteryDelta?: number,
     ) => {
       const pair = deck.find((p) => p.id === pairId)
       if (!pair) return
       const key = direction === 'askLeft' ? 'lr' : 'rl'
       const cur = pair.stats?.[key] ?? 0
       const next = patch(cur)
-      // 熟练度：增量 × 1.1^连对/连错次数，同时更新连对连错计数
+      // 熟练度：增量 × 1.1^连对/连错次数，同时更新连对连错计数；
+      // 传入了 masteryDelta 时（本题曾选错，最终答对按 0.95^x 衰减）直接使用该增量
       const nm =
-        correct === undefined
+        masteryDelta !== undefined
           ? {
-              mastery: masteryOf(pair),
-              correctStreak: pair.correctStreak ?? 0,
-              wrongStreak: pair.wrongStreak ?? 0,
+              mastery: clampMastery(masteryOf(pair) + masteryDelta),
+              correctStreak: (pair.correctStreak ?? 0) + 1,
+              wrongStreak: 0,
             }
-          : nextMastery(pair, correct)
+          : correct === undefined
+            ? {
+                mastery: masteryOf(pair),
+                correctStreak: pair.correctStreak ?? 0,
+                wrongStreak: pair.wrongStreak ?? 0,
+              }
+            : nextMastery(pair, correct)
       const stats = { ...pair.stats, [key]: next } as PairItem['stats']
       void persistPair({ ...pair, stats, ...nm })
     },
@@ -193,6 +209,7 @@ export function useChoiceEngine() {
           options: q.options,
           selectedId: null,
           resolved: 'idle',
+          wrongCount: 0,
         },
         markedIrrelevantIds: [],
         eliminatedIds: [],
@@ -234,6 +251,20 @@ export function useChoiceEngine() {
 
         if (correct) {
           queueResult(true)
+          // 本题曾选错 x 次：最终答对的熟练度增量 =（0.5 × 1.1^连对次数）× 0.95^x
+          const wrongCount = prev.session.wrongCount ?? 0
+          const cs = deck.find((p) => p.id === prev.session.pair.id)
+            ?.correctStreak ?? 0
+          const base =
+            MASTERY_CORRECT_BONUS * Math.pow(MASTERY_STREAK_BASE, cs)
+          const delta = masteryDeltaAfterWrongs(base, wrongCount)
+          applyStats(
+            prev.session.pair.id,
+            direction,
+            (cur) => clamp(cur - 0.5, 0, Number.POSITIVE_INFINITY),
+            undefined,
+            delta,
+          )
           return {
             ...prev,
             session: { ...prev.session, selectedId: optionId, resolved: 'correct' },
@@ -241,15 +272,20 @@ export function useChoiceEngine() {
             markedIrrelevantIds: nextMarked,
           }
         }
-        // 答错：记录该选项对应的正确匹配（其所属 pair 的对边内容），短暂弹出
+        // 答错：记录该选项对应的正确匹配（其所属 pair 的另一侧内容），短暂弹出
         queueResult(false)
         const wrongPair = deck.find((p) => p.id === option.pairId)
+        // 选项来自「答案侧」，其所属 pair 的「题目侧」才是正确匹配（修复方向颠倒）
         const matchSide =
-          direction === 'askLeft' ? wrongPair?.right : wrongPair?.left
+          direction === 'askLeft' ? wrongPair?.left : wrongPair?.right
         const wrongMatch = matchSide ? sample(matchSide) ?? null : null
         return {
           ...prev,
-          session: { ...prev.session, selectedId: optionId },
+          session: {
+            ...prev.session,
+            selectedId: optionId,
+            wrongCount: (prev.session.wrongCount ?? 0) + 1,
+          },
           errors: prev.errors + 1,
           justWrongId: optionId,
           wrongMatch: wrongMatch

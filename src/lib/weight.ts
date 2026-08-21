@@ -22,6 +22,8 @@ export const MASTERY_MANUAL_STEP = 0.5
 export const MASTERY_SAMPLE_BASE = 0.97
 /** 连对/连错增量放大底数：熟练度增量 = 基础值 × 1.1^连续次数 */
 export const MASTERY_STREAK_BASE = 1.1
+/** 单选题/默写题 本题选错后最终答对的增量衰减底数：增量 = 基础值 × 0.95^选错次数 */
+export const MASTERY_WRONG_PENALTY_BASE = 0.95
 
 /** 取题目的熟练度（缺省视为 0） */
 export function masteryOf(item: { mastery?: number } | undefined): number {
@@ -70,4 +72,12 @@ export function adjustMastery(
 /** 出题采样权重：y = 0.97^x，熟练度越高权重越小、出题越少 */
 export function sampleWeight(mastery: number): number {
   return Math.pow(MASTERY_SAMPLE_BASE, mastery)
+}
+
+/** 本题选错 x 次后最终答对时的熟练度增量（基础增量 × 0.95^x，基础增量可含连对加成） */
+export function masteryDeltaAfterWrongs(
+  base: number,
+  wrongCount: number,
+): number {
+  return base * Math.pow(MASTERY_WRONG_PENALTY_BASE, wrongCount)
 }
