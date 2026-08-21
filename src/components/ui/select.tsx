@@ -130,7 +130,7 @@ export function Select({
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in zoom-in-95 duration-100"
+          className="absolute right-0 top-full z-50 mt-1 max-h-60 min-w-full w-max max-w-[calc(100vw-2rem)] overflow-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in zoom-in-95 duration-100"
         >
           {groups.map((g) => (
             <li key={g.name || '__root'} role="none">
@@ -164,7 +164,7 @@ export function Select({
                               : 'hover:bg-accent',
                         )}
                       >
-                        <span className="truncate">{opt.label}</span>
+                        <span className="truncate whitespace-nowrap">{opt.label}</span>
                         {selected && <Check className="h-4 w-4 shrink-0" />}
                       </button>
                     </li>
