@@ -41,6 +41,8 @@ interface ChoiceEngineState {
   justWrongId: string | null
   /** 刚答错选项对应的正确匹配内容（在选项上方短暂弹出） */
   wrongMatch: { optionId: string; content: Content } | null
+  /** 长按已熄灭（锁定）选项弹出的该选项正确匹配（短暂展示后消失） */
+  lockedHint: { optionId: string; content: Content } | null
   /** 最近 3 题出现过的 pair id */
   recentPairIds: string[]
 }
@@ -150,6 +152,7 @@ export function useChoiceEngine() {
     eliminatedIds: [],
     justWrongId: null,
     wrongMatch: null,
+    lockedHint: null,
     recentPairIds: [],
   })
 
@@ -197,7 +200,7 @@ export function useChoiceEngine() {
 
       const q = pickQuestion(deck, recent)
       if (!q) {
-        return { ...prev, session: null, markedIrrelevantIds: [], eliminatedIds: [], justWrongId: null, wrongMatch: null, recentPairIds: recent }
+        return { ...prev, session: null, markedIrrelevantIds: [], eliminatedIds: [], justWrongId: null, wrongMatch: null, lockedHint: null, recentPairIds: recent }
       }
       return {
         ...prev,
@@ -215,13 +218,14 @@ export function useChoiceEngine() {
         eliminatedIds: [],
         justWrongId: null,
         wrongMatch: null,
+        lockedHint: null,
         recentPairIds: recent,
       }
     })
   }, [deck])
 
   const start = useCallback(() => {
-    setState({ session: null, score: 0, errors: 0, markedIrrelevantIds: [], eliminatedIds: [], justWrongId: null, wrongMatch: null, recentPairIds: [] })
+    setState({ session: null, score: 0, errors: 0, markedIrrelevantIds: [], eliminatedIds: [], justWrongId: null, wrongMatch: null, lockedHint: null, recentPairIds: [] })
     next()
   }, [next])
 
@@ -314,6 +318,33 @@ export function useChoiceEngine() {
     })
   }, [])
 
+  /** 长按已熄灭（锁定）选项：在该选项上方弹出它匹配的正确内容（短暂展示后自动消失） */
+  const revealOptionMatch = useCallback(
+    (optionId: string) => {
+      setState((prev) => {
+        if (!prev.session || prev.session.resolved !== 'idle') return prev
+        if (prev.justWrongId) return prev
+        const option = prev.session.options.find((o) => o.id === optionId)
+        if (!option) return prev
+        // 选项来自「答案侧」，其所属 pair 的「题目侧」才是它匹配的正确内容（与答错弹出一致）
+        const pair = deck.find((p) => p.id === option.pairId)
+        const matchSide =
+          prev.session.direction === 'askLeft' ? pair?.left : pair?.right
+        const content = matchSide ? sample(matchSide) ?? null : null
+        if (!content) return prev
+        return { ...prev, lockedHint: { optionId, content } }
+      })
+    },
+    [deck],
+  )
+
+  /** 松开长按（或指针离开/取消）：隐藏弹出的正确匹配 */
+  const hideLockedHint = useCallback(() => {
+    setState((prev) =>
+      prev.lockedHint ? { ...prev, lockedHint: null } : prev,
+    )
+  }, [])
+
   // 答错红色闪烁后转入不可解除熄灭；若候选项只剩 4 个则停止并揭示答案
   useEffect(() => {
     const wrongId = state.justWrongId
@@ -388,10 +419,13 @@ export function useChoiceEngine() {
     eliminatedIds: state.eliminatedIds,
     justWrongId: state.justWrongId,
     wrongMatch: state.wrongMatch,
+    lockedHint: state.lockedHint,
     start,
     next,
     selectOption,
     toggleIrrelevant,
+    revealOptionMatch,
+    hideLockedHint,
     giveUp,
   }
 }

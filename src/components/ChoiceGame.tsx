@@ -99,9 +99,16 @@ export function ChoiceGame() {
                     ? engine.wrongMatch.content
                     : null
                 }
+                lockedHint={
+                  engine.lockedHint?.optionId === opt.id
+                    ? engine.lockedHint.content
+                    : null
+                }
                 dimmed={isEliminated(opt.id) || isIrrelevant(opt.id)}
                 canUnDim={isIrrelevant(opt.id)}
                 onLongPress={() => engine.toggleIrrelevant(opt.id)}
+                onLockedLongPress={() => engine.revealOptionMatch(opt.id)}
+                onLockedLongPressRelease={() => engine.hideLockedHint()}
                 disabled={resolved || engine.justWrongId !== null}
                 onClick={() => engine.selectOption(opt.id)}
               />
@@ -112,7 +119,7 @@ export function ChoiceGame() {
           {session.resolved !== 'revealed' && (
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
-                长按可标记无关选项，再次长按取消。
+                长按可标记无关选项，再次长按取消；长按熄灭（答错排除）的选项可查看它匹配的正确内容。
               </p>
               <Button
                 variant="outline"
