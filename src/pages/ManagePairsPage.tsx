@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import {
   DndContext,
   PointerSensor,
-  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -94,6 +93,8 @@ function SortableTopicChip({
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
+        // 禁止浏览器接管触摸手势：否则移动端拖动时会触发页面滚动并取消拖拽
+        touchAction: 'none',
       }}
       className={cn(
         'inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors',
@@ -226,10 +227,9 @@ export default function ManagePairsPage() {
         : topicsApi.setActiveSentencesTopicId
   const activeTopic = tabTopics.find((t) => t.id === activeTopicId) ?? tabTopics[0] ?? null
 
-  // 专题拖拽排序
+  // 专题拖拽排序（PointerSensor 同时支持鼠标与触摸，配合 touch-action:none 避免移动端滚动冲突）
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 4 } }),
   )
 
   const handleTopicDragEnd = (e: DragEndEvent) => {
