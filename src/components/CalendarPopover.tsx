@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAtomValue, useStore } from 'jotai'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Coins } from 'lucide-react'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import { pointsAtom } from '@/store/points'
 import {
@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { STATUS_LABEL, STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
 import { RepairConfirmPopup } from '@/components/RepairConfirmPopup'
+import { useLongPress } from '@/hooks/useLongPress'
 
 export interface CalendarPopoverProps {
   /** 触发区域（顶栏连胜按钮） */
@@ -43,6 +44,9 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
     y: number
   } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
+
+  // 移动端无 hover：长按连胜天数打开当月日历（短按仍由触发器 onClick 打开年日历）
+  const longPressHandlers = useLongPress(() => setOpen(true))
 
   // 点击容器外部时关闭面板
   useEffect(() => {
@@ -99,6 +103,7 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
         setOpen(false)
         setPendingRepair(null)
       }}
+      {...longPressHandlers}
     >
       {trigger}
 
@@ -209,17 +214,20 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                   未答 {stats.missedDays}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
                 本月消耗积分 {stats.pointsSpent}
+                <Coins className="h-3.5 w-3.5 text-amber-500" />
               </p>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-dashed ring-amber-400" />
                   连胜激冻 233
+                  <Coins className="h-3.5 w-3.5 text-amber-500" />
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-dashed ring-sky-400" />
                   补签 648
+                  <Coins className="h-3.5 w-3.5 text-amber-500" />
                 </span>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useAtomValue, useStore } from 'jotai'
+import { Coins } from 'lucide-react'
 import {
   Dialog,
   DialogHeader,
@@ -174,17 +175,20 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
               未答 {yearStats.missedDays}
             </span>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
             全年消耗积分 {yearStats.pointsSpent}
+            <Coins className="h-3.5 w-3.5 text-amber-500" />
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-dashed ring-amber-400" />
               连胜激冻 233
+              <Coins className="h-3.5 w-3.5 text-amber-500" />
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-dashed ring-sky-400" />
               补签 648
+              <Coins className="h-3.5 w-3.5 text-amber-500" />
             </span>
           </div>
         </div>
