@@ -251,15 +251,18 @@ export function useChoiceEngine() {
 
         if (correct) {
           queueResult(true)
+          // 先解构局部常量：属性访问链（prev.session）的窄化不会穿过 find 回调，
+          // const 变量的窄化则可以（否则 TS18047: possibly null）
+          const session = prev.session
           // 本题曾选错 x 次：最终答对的熟练度增量 =（0.5 × 1.1^连对次数）× 0.95^x
-          const wrongCount = prev.session.wrongCount ?? 0
-          const cs = deck.find((p) => p.id === prev.session.pair.id)
+          const wrongCount = session.wrongCount ?? 0
+          const cs = deck.find((p) => p.id === session.pair.id)
             ?.correctStreak ?? 0
           const base =
             MASTERY_CORRECT_BONUS * Math.pow(MASTERY_STREAK_BASE, cs)
           const delta = masteryDeltaAfterWrongs(base, wrongCount)
           applyStats(
-            prev.session.pair.id,
+            session.pair.id,
             direction,
             (cur) => clamp(cur - 0.5, 0, Number.POSITIVE_INFINITY),
             undefined,
@@ -267,7 +270,7 @@ export function useChoiceEngine() {
           )
           return {
             ...prev,
-            session: { ...prev.session, selectedId: optionId, resolved: 'correct' },
+            session: { ...session, selectedId: optionId, resolved: 'correct' },
             score: prev.score + 1,
             markedIrrelevantIds: nextMarked,
           }
