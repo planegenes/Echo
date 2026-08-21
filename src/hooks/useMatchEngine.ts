@@ -20,7 +20,8 @@ import { masteryOf, nextMastery, sampleWeight } from '@/lib/weight'
  * - 长按标记为无关的卡片仍可点击选中（选中时自动解除标记），与单选一致
  */
 const ROUND_SIZE = 4
-const MATCH_HOLD_MS = 600
+/** 选对/选错揭示后停留时长（毫秒）：给足时间看清正确配对 */
+const MATCH_HOLD_MS = 1500
 
 /** 困难模式：1 正确 + 4 左干扰 + 4 右干扰 = 9 组，每侧 5 选项 */
 const HARD_TOTAL = 9
@@ -320,6 +321,23 @@ export function useMatchEngine() {
         const card = cards.find((c) => c.id === cardId)
         if (!card) return prev
         if (prev.session.matchedPairIds.includes(card.pairId)) return prev
+        // 再次点击已选中的卡片：取消选中
+        if (
+          (side === 'left' && prev.session.selectedLeft === cardId) ||
+          (side === 'right' && prev.session.selectedRight === cardId)
+        ) {
+          return {
+            ...prev,
+            session: {
+              ...prev.session,
+              selectedLeft:
+                side === 'left' ? null : prev.session.selectedLeft,
+              selectedRight:
+                side === 'right' ? null : prev.session.selectedRight,
+            },
+            lastClickedSide: side,
+          }
+        }
         // 标记为无关的卡片仍可选中，选中时自动解除标记（与单选一致）
         const unmarked = prev.markedIrrelevantIds.filter((id) => id !== cardId)
 
@@ -388,7 +406,8 @@ export function useMatchEngine() {
           session: { ...prev.session, selectedLeft, selectedRight },
           errors: prev.errors + 1,
           justMatchedId: revealPairId,
-          justWrongIds: null,
+          // 选错的两张卡片变红（shake），同时正确配对由 justMatchedId 变绿展示
+          justWrongIds: { left: selectedLeft, right: selectedRight },
           markedIrrelevantIds: unmarked,
           lastClickedSide,
         }

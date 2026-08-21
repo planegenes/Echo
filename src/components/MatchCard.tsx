@@ -15,7 +15,7 @@ export interface MatchCardProps {
   justWrong?: boolean
   /** 配对成功期间其他卡片淡出 */
   faded?: boolean
-  /** 长按标记为无关：淡化 + 删除线 + disabled */
+  /** 长按标记为无关：淡化 + 删除线（单击仍可选中并自动解除标记，再次长按可取消标记） */
   markedIrrelevant?: boolean
   /** 长按回调（标记/取消标记） */
   onLongPress?: () => void
@@ -29,7 +29,8 @@ export interface MatchCardProps {
  * - justMatched：刚配对成功（绿色 + pop）
  * - justWrong：刚选错（红色 + shake）
  * - faded：其他卡片在匹配动画期间淡出
- * - markedIrrelevant：长按标记为无关（淡化 + 删除线 + disabled，再次长按可取消）
+ * - markedIrrelevant：长按标记为无关（淡化 + 删除线）；单击仍可选中（选中时自动解除标记），再次长按可取消标记
+ * - 再次单击已选中的卡片可取消选中
  */
 export function MatchCard({
   content,
@@ -45,14 +46,14 @@ export function MatchCard({
   const longPressHandlers = useLongPress(() => onLongPress?.())
 
   // markedIrrelevant 时不 disable（保证 pointer 事件可触发用于再次长按取消），
-  // 而是在 click 中拦截
+  // 单击仍会选中该卡片（引擎侧自动解除标记）
   const trulyDisabled = disabled || justMatched || justWrong || faded
 
   return (
     <button
       type="button"
       onClick={() => {
-        if (markedIrrelevant || trulyDisabled) return
+        if (trulyDisabled) return
         onClick()
       }}
       onClickCapture={longPressHandlers.onClickCapture}
