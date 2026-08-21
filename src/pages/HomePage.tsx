@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Layers, ListChecks, FileText, PenLine, BookOpen, Settings, Puzzle } from 'lucide-react'
+import { Layers, ListChecks, FileText, PenLine, PenTool, BookOpen, Settings, Puzzle } from 'lucide-react'
 
 interface EntryCardProps {
   to: string
@@ -51,6 +51,12 @@ export default function HomePage() {
           desc="根据一侧内容选择对应另一侧"
           icon={ListChecks}
           primary
+        />
+        <EntryCard
+          to="/dictation"
+          title="默写测验"
+          desc="看一侧内容，输入另一侧（任填一项）"
+          icon={PenTool}
         />
         <EntryCard
           to="/texts"

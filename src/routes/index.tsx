@@ -2,6 +2,7 @@ import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import HomePage from '@/pages/HomePage'
 import MatchPage from '@/pages/MatchPage'
 import ChoicePage from '@/pages/ChoicePage'
+import DictationPage from '@/pages/DictationPage'
 import ManagePairsPage from '@/pages/ManagePairsPage'
 import ManageTextsPage from '@/pages/ManageTextsPage'
 import FillSelectPage from '@/pages/FillSelectPage'
@@ -14,6 +15,7 @@ import SettingsPage from '@/pages/SettingsPage'
  * - /               首页
  * - /match          配对测验
  * - /choice         单选匹配
+ * - /dictation      默写测验
  * - /manage         题库管理（配对 + 文本 + 组句）
  * - /texts          填空测验（随机抽取文本做填空）
  * - /fill/select/:textId  选词填空
@@ -25,6 +27,7 @@ export const routes: RouteObject[] = [
   { path: '/', element: <HomePage /> },
   { path: '/match', element: <MatchPage /> },
   { path: '/choice', element: <ChoicePage /> },
+  { path: '/dictation', element: <DictationPage /> },
   { path: '/manage', element: <ManagePairsPage /> },
   { path: '/texts', element: <ManageTextsPage /> },
   { path: '/fill/select/:textId', element: <FillSelectPage /> },

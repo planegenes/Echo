@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Layers, FileText, BookOpen, Settings, Sun, Moon, Puzzle, Coins, Flame, MousePointerClick } from 'lucide-react'
+import { Home, Layers, FileText, BookOpen, Settings, Sun, Moon, Puzzle, Coins, Flame, MousePointerClick, PenLine } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Logo } from '@/components/Logo'
 import { cn } from '@/lib/utils'
@@ -31,6 +31,7 @@ const NAV: NavItem[] = [
   { to: '/', label: '首页', icon: Home },
   { to: '/match', label: '配对', icon: Layers },
   { to: '/choice', label: '单选', icon: MousePointerClick },
+  { to: '/dictation', label: '默写', icon: PenLine },
   { to: '/texts', label: '填空', icon: FileText },
   { to: '/sentences', label: '组句', icon: Puzzle },
   { to: '/manage', label: '题库', icon: BookOpen },
