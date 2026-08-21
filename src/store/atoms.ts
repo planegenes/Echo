@@ -570,8 +570,19 @@ export async function replaceAllTopics(newTopics: Topic[]): Promise<void> {
   internalStore.set(activeSentencesTopicIdAtom, firstSentences?.id ?? null)
 }
 
-/** 替换所有专题但保留当前活动专题选择（用于 WebDAV 同步） */
-export async function syncAllTopics(newTopics: Topic[]): Promise<void> {
+/**
+ * 合并导入：用合并后的完整专题列表替换存储，但保留当前活动专题选择。
+ * 与 replaceAllTopics 的区别：不会把活动专题重置为第一个
+ * （用于「导入 JSON / 从剪贴板导入」等不清空原有题库的合并场景）。
+ */
+export async function mergeImportTopics(newTopics: Topic[]): Promise<void> {
+  await replaceTopicsPreservingActive(newTopics)
+}
+
+/** 批量写入专题并保留当前活动专题选择（仅在不指向有效专题时回退） */
+async function replaceTopicsPreservingActive(
+  newTopics: Topic[],
+): Promise<void> {
   await dbClearTopics()
   const normalized = newTopics.map((t) => ({
     ...t,
@@ -595,6 +606,11 @@ export async function syncAllTopics(newTopics: Topic[]): Promise<void> {
   if (!curSentences || !sentencesTopics.find((t) => t.id === curSentences)) {
     internalStore.set(activeSentencesTopicIdAtom, sentencesTopics[0]?.id ?? null)
   }
+}
+
+/** 替换所有专题但保留当前活动专题选择（用于 WebDAV 同步） */
+export async function syncAllTopics(newTopics: Topic[]): Promise<void> {
+  await replaceTopicsPreservingActive(newTopics)
 }
 
 // ----- Pair 级别（操作活动配对专题）-----

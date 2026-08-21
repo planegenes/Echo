@@ -18,11 +18,12 @@ import {
   downloadSnapshot,
   ensureIds,
   isClipboardApiAvailable,
+  mergeTopics,
   parseSnapshot,
   readSnapshotFromClipboard,
 } from '@/lib/importExport'
 import { buildBackup, downloadBackup, parseBackup } from '@/lib/backup'
-import { settingsAtom, persistSettings } from '@/store/atoms'
+import { settingsAtom, mergeImportTopics, persistSettings } from '@/store/atoms'
 import { pointsAtom } from '@/store/points'
 import { dailyStreakAtom, dayLogsAtom } from '@/store/dailyStreak'
 import {
@@ -98,13 +99,7 @@ export function ImportExportPanel({
         return
       }
       const normalized = ensureIds(result.data)
-      await onImport(normalized.topics)
-      const totalPairs = normalized.topics.reduce((s, t) => s + t.pairs.length, 0)
-      const totalTexts = normalized.topics.reduce((s, t) => s + t.texts.length, 0)
-      setNotice({
-        kind: 'success',
-        message: `已导入 ${normalized.topics.length} 个专题（${totalPairs} 组配对、${totalTexts} 段文本）`,
-      })
+      await importMerged(normalized.topics)
     } catch (err) {
       setNotice({
         kind: 'error',
@@ -130,19 +125,33 @@ export function ImportExportPanel({
     }
     const normalized = ensureIds(result.data)
     try {
-      await onImport(normalized.topics)
-      const totalPairs = normalized.topics.reduce((s, t) => s + t.pairs.length, 0)
-      const totalTexts = normalized.topics.reduce((s, t) => s + t.texts.length, 0)
-      setNotice({
-        kind: 'success',
-        message: `已导入 ${normalized.topics.length} 个专题（${totalPairs} 组配对、${totalTexts} 段文本）`,
-      })
+      await importMerged(normalized.topics)
     } catch (err) {
       setNotice({
         kind: 'error',
         message: `导入失败：${err instanceof Error ? err.message : String(err)}`,
       })
     }
+  }
+
+  /**
+   * 合并导入（不覆盖/清除已有题库）：同 id 专题原地更新，新专题追加到末尾；
+   * 保留当前活动专题选择（不会重置为第一个）
+   */
+  const importMerged = async (incoming: Topic[]) => {
+    const addedCount = incoming.filter(
+      (t) => !topics.some((x) => x.id === t.id),
+    ).length
+    const updatedCount = incoming.length - addedCount
+    const merged = mergeTopics(topics, incoming)
+    await mergeImportTopics(merged)
+    const totalPairs = incoming.reduce((s, t) => s + t.pairs.length, 0)
+    const totalTexts = incoming.reduce((s, t) => s + t.texts.length, 0)
+    const totalSentences = incoming.reduce((s, t) => s + t.sentences.length, 0)
+    setNotice({
+      kind: 'success',
+      message: `已合并导入 ${incoming.length} 个专题（新增 ${addedCount}、更新 ${updatedCount}）：${totalPairs} 组配对、${totalTexts} 段文本、${totalSentences} 句组句`,
+    })
   }
 
   const handleExportBackup = () => {

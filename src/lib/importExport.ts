@@ -304,3 +304,24 @@ export function ensureIds(snapshot: Snapshot): Snapshot {
     updatedAt: snapshot.updatedAt,
   }
 }
+
+/**
+ * 合并导入：保留原有题库，不清除任何已有专题。
+ * - 同 id 专题：用导入内容原地更新（保留原位置与 order）
+ * - 新 id 专题：按导入顺序追加到末尾，顺序号顺延
+ * 用于「导入 JSON / 从剪贴板导入」等不应清空题库的导入场景。
+ */
+export function mergeTopics(existing: Topic[], incoming: Topic[]): Topic[] {
+  const existingIds = new Set(existing.map((t) => t.id))
+  const merged: Topic[] = existing.map((t) => {
+    const hit = incoming.find((x) => x.id === t.id)
+    return hit ? { ...hit, order: t.order } : t
+  })
+  let order = merged.length
+  for (const t of incoming) {
+    if (existingIds.has(t.id)) continue
+    merged.push({ ...t, order })
+    order += 1
+  }
+  return merged
+}
