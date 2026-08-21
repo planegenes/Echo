@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogClose,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -40,15 +41,18 @@ import type { PairItem, SentenceItem, TextItem, Topic, TopicType } from '@/types
 import { cn, uid } from '@/lib/utils'
 import {
   buildSnapshot,
+  copySnapshotToClipboard,
   downloadSnapshot,
+  isClipboardApiAvailable,
   parseTopicSnapshot,
+  readSnapshotFromClipboard,
 } from '@/lib/importExport'
 import defaultPairs from '@/presets/default-pairs.json'
 import defaultTexts from '@/presets/default-texts.json'
 import defaultSentencesZh from '@/presets/default-sentences-zh.json'
 import defaultSentencesYue from '@/presets/default-sentences-yue.json'
 import defaultSentencesEn from '@/presets/default-sentences-en.json'
-import { Plus, FolderPlus, Pencil, Trash2, Check, X, Download, Upload, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, FolderPlus, Pencil, Trash2, Check, X, Download, Upload, ClipboardCopy, ClipboardPaste, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 type Notice =
   | { kind: 'success'; message: string }
@@ -210,6 +214,9 @@ export default function ManagePairsPage() {
   // 当前专题（题库）导入导出
   const topicFileRef = useRef<HTMLInputElement>(null)
   const [topicNotice, setTopicNotice] = useState<Notice>(null)
+  // 当前专题 剪贴板导入（无 Clipboard API 时手动粘贴兜底）
+  const [topicPasteDialogOpen, setTopicPasteDialogOpen] = useState(false)
+  const [topicPasteText, setTopicPasteText] = useState('')
 
   const { topics } = topicsApi
   const tabTopics = topics.filter((t) => t.type === tab)
@@ -398,9 +405,24 @@ export default function ManagePairsPage() {
 
   /** 将导入文件中的同类型题库替换到当前专题（保留当前专题 id 与名称） */
   const handleImportTopicFile = async (file: File) => {
-    if (!activeTopic) return
     try {
       const text = await file.text()
+      await applyTopicSnapshotText(text)
+    } catch (err) {
+      setTopicNotice({
+        kind: 'error',
+        message: `导入失败：${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }
+
+  /**
+   * 解析快照 JSON 并导入到当前专题（覆盖其同类型内容，保留 id 与名称）
+   * 文件导入与剪贴板导入共用此逻辑
+   */
+  const applyTopicSnapshotText = async (text: string) => {
+    if (!activeTopic) return
+    try {
       const result = parseTopicSnapshot(JSON.parse(text), activeTopic.type)
       if (!result.ok) {
         setTopicNotice({ kind: 'error', message: `导入失败：${result.error}` })
@@ -415,9 +437,9 @@ export default function ManagePairsPage() {
       }
       await persistTopic(merged)
       const count =
-        tab === 'pairs'
+        activeTopic.type === 'pairs'
           ? merged.pairs.length
-          : tab === 'texts'
+          : activeTopic.type === 'texts'
             ? merged.texts.length
             : merged.sentences.length
       setTopicNotice({
@@ -430,6 +452,59 @@ export default function ManagePairsPage() {
         message: `导入失败：${err instanceof Error ? err.message : String(err)}`,
       })
     }
+  }
+
+  /** 复制当前专题到剪贴板 */
+  const handleCopyActiveTopicToClipboard = async () => {
+    if (!activeTopic) return
+    try {
+      await copySnapshotToClipboard([activeTopic])
+      setTopicNotice({
+        kind: 'success',
+        message: `已复制专题「${activeTopic.name}」到剪贴板`,
+      })
+    } catch (err) {
+      setTopicNotice({
+        kind: 'error',
+        message: `复制失败：${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }
+
+  /** 从剪贴板导入当前专题（无 Clipboard API 时降级为手动粘贴） */
+  const handleImportActiveTopicFromClipboard = async () => {
+    if (!activeTopic) return
+    if (!isClipboardApiAvailable()) {
+      setTopicPasteText('')
+      setTopicPasteDialogOpen(true)
+      return
+    }
+    try {
+      const result = await readSnapshotFromClipboard()
+      if (!result.ok || !result.data) {
+        setTopicNotice({
+          kind: 'error',
+          message: `导入失败：${result.error ?? '剪贴板内容不是有效的快照'}`,
+        })
+        return
+      }
+      await applyTopicSnapshotText(JSON.stringify(result.data))
+    } catch (err) {
+      setTopicNotice({
+        kind: 'error',
+        message: `导入失败：${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }
+
+  /** 手动粘贴弹窗确认 */
+  const handleTopicPasteConfirm = () => {
+    if (!topicPasteText.trim()) {
+      setTopicNotice({ kind: 'error', message: '请粘贴 JSON 内容' })
+      return
+    }
+    setTopicPasteDialogOpen(false)
+    void applyTopicSnapshotText(topicPasteText)
   }
 
   const handleRestoreDefaults = async () => {
@@ -549,6 +624,26 @@ export default function ManagePairsPage() {
               >
                 <Upload className="h-4 w-4" />
                 导入当前题库
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!activeTopic}
+                onClick={() => void handleCopyActiveTopicToClipboard()}
+                title="复制当前激活的专题到剪贴板"
+              >
+                <ClipboardCopy className="h-4 w-4" />
+                剪贴板导出
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!activeTopic}
+                onClick={() => void handleImportActiveTopicFromClipboard()}
+                title="从剪贴板导入到当前激活的专题（覆盖其内容）"
+              >
+                <ClipboardPaste className="h-4 w-4" />
+                剪贴板导入
               </Button>
               <Button
                 variant="outline"
@@ -805,6 +900,37 @@ export default function ManagePairsPage() {
         topicType={tab}
         onConfirm={handleAiConfirm}
       />
+
+      {/* 当前专题 剪贴板导入（手动粘贴兜底） */}
+      <Dialog open={topicPasteDialogOpen} onOpenChange={setTopicPasteDialogOpen}>
+        <DialogHeader>
+          <DialogTitle>手动粘贴</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 p-4">
+          <p className="text-sm text-muted-foreground">
+            当前环境不支持直接读取剪贴板，请将 JSON 内容粘贴到下方文本框中，
+            导入到当前专题「{activeTopic?.name}」（覆盖其内容）。
+          </p>
+          <textarea
+            className="w-full min-h-[200px] rounded-md border bg-background px-3 py-2 text-sm font-mono resize-y"
+            placeholder="在此粘贴 JSON 内容..."
+            value={topicPasteText}
+            onChange={(e) => setTopicPasteText(e.target.value)}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTopicPasteDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button size="sm" onClick={handleTopicPasteConfirm}>
+              确认导入
+            </Button>
+          </DialogFooter>
+        </div>
+      </Dialog>
 
       {/* AI 修改题库 Dialog */}
       <AiEditDialog
