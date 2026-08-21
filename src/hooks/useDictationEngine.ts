@@ -60,16 +60,33 @@ function pickQuestion(
 
   const direction: ChoiceDirection =
     Math.random() < 0.5 ? 'askLeft' : 'askRight'
-  const promptSide = direction === 'askLeft' ? pair.left : pair.right
-  const answerSide = direction === 'askLeft' ? pair.right : pair.left
-  const prompt = sample(promptSide)
-  if (!prompt || answerSide.length === 0) return null
+
+  // 答案侧（用户输入的一侧）只允许文本类型：latex/ruby 无法通过输入框作答，直接排除
+  const build = (dir: ChoiceDirection) => {
+    const promptSide = dir === 'askLeft' ? pair.left : pair.right
+    const answerSide = dir === 'askLeft' ? pair.right : pair.left
+    const prompt = sample(promptSide)
+    if (!prompt) return null
+    // 答案侧排除与题目内容相同的项：用户需要输入的是另一侧（与题目不同）的内容，
+    // 若两侧内容相同（如左「苹果」右「苹果」），照抄题目不应判对
+    const answers = answerSide.filter(
+      (c) =>
+        c.format === 'text' &&
+        !compareIgnorePunctuation(c.value, prompt.value),
+    )
+    if (answers.length === 0) return null
+    return { direction: dir, prompt, answers }
+  }
+
+  const built =
+    build(direction) ?? build(direction === 'askLeft' ? 'askRight' : 'askLeft')
+  if (!built) return null
 
   return {
     pair,
-    direction,
-    prompt,
-    answers: answerSide,
+    direction: built.direction,
+    prompt: built.prompt,
+    answers: built.answers,
     input: '',
     resolved: 'idle',
     wrongCount: 0,
@@ -214,8 +231,29 @@ export function useDictationEngine() {
 
   const canPlay = deck.length > 0
 
+  /** 是否存在可用于默写的配对：答案侧（用户输入的一侧）有文本项且与题目内容不同 */
+  const hasUsablePairs = deck.some((pair) => {
+    for (const dir of ['askLeft', 'askRight'] as const) {
+      const promptSide = dir === 'askLeft' ? pair.left : pair.right
+      const answerSide = dir === 'askLeft' ? pair.right : pair.left
+      for (const prompt of promptSide) {
+        if (
+          answerSide.some(
+            (c) =>
+              c.format === 'text' &&
+              !compareIgnorePunctuation(c.value, prompt.value),
+          )
+        ) {
+          return true
+        }
+      }
+    }
+    return false
+  })
+
   return {
     canPlay,
+    hasUsablePairs,
     deck,
     session: state.session,
     score: state.score,

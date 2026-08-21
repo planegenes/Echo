@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useDictationEngine } from '@/hooks/useDictationEngine'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,19 @@ import { AlertCircle, Eye, RefreshCw, Sparkles } from 'lucide-react'
  */
 export function DictationGame() {
   const engine = useDictationEngine()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const questionId = engine.session?.pair.id
+  const sessionResolved = engine.session?.resolved
+
+  // 输入框出现 / 切换新题时自动聚焦（初始挂载与每题切换都会触发）
+  useEffect(() => {
+    if (
+      inputRef.current &&
+      (sessionResolved === 'idle' || sessionResolved === 'wrong')
+    ) {
+      inputRef.current.focus()
+    }
+  }, [questionId, sessionResolved])
 
   useEffect(() => {
     if (engine.canPlay && !engine.session) {
@@ -32,6 +45,20 @@ export function DictationGame() {
             题库管理
           </a>
           添加配对题。
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (engine.canPlay && !engine.hasUsablePairs) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-muted-foreground">
+          当前专题的配对题无法用于默写：答案侧（用户输入的一侧）需要包含与题目内容不同的文本项，请到
+          <a className="mx-1 text-primary underline" href="/manage">
+            题库管理
+          </a>
+          调整。
         </CardContent>
       </Card>
     )
@@ -90,11 +117,11 @@ export function DictationGame() {
           {/* 输入区 */}
           <div className="flex gap-2">
             <Input
+              ref={inputRef}
               value={session.input}
               onChange={(e) => engine.setInput(e.target.value)}
               placeholder="输入答案..."
               disabled={done}
-              autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && canConfirm) engine.confirm()
               }}
