@@ -41,6 +41,8 @@ interface MatchEngineState {
   markedIrrelevantIds: string[]
   /** 最近 3 回合出现过的 pair id */
   recentRounds: string[][]
+  /** 最后点击的一侧（用于选错时揭示该侧卡片的正确配对） */
+  lastClickedSide: 'left' | 'right' | null
 }
 
 interface HardPick {
@@ -183,6 +185,7 @@ export function useMatchEngine() {
     difficulty: 'normal',
     markedIrrelevantIds: [],
     recentRounds: [],
+    lastClickedSide: null,
   })
 
   const applyStats = useCallback(
@@ -214,7 +217,7 @@ export function useMatchEngine() {
       const mode = prev.difficulty
       if (mode === 'hard') {
         if (deck.length < HARD_TOTAL) {
-          return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [] }
+          return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [], lastClickedSide: null }
         }
         const pick = pickRoundHard(deck, [])
         return {
@@ -227,10 +230,11 @@ export function useMatchEngine() {
           roundKey: 1,
           markedIrrelevantIds: [],
           recentRounds: [],
+          lastClickedSide: null,
         }
       }
       if (deck.length < ROUND_SIZE) {
-        return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [] }
+        return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [], lastClickedSide: null }
       }
       const picks = pickRound(deck, [])
       return {
@@ -243,6 +247,7 @@ export function useMatchEngine() {
         roundKey: 1,
         markedIrrelevantIds: [],
         recentRounds: [],
+        lastClickedSide: null,
       }
     })
   }, [deck])
@@ -257,7 +262,7 @@ export function useMatchEngine() {
 
       if (prev.difficulty === 'hard') {
         const pick = pickRoundHard(deck, recentFlat)
-        if (!pick) return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [] }
+        if (!pick) return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [], lastClickedSide: null }
         return {
           ...prev,
           session: buildHardSession(pick, lastIds),
@@ -266,10 +271,11 @@ export function useMatchEngine() {
           roundKey: prev.roundKey + 1,
           markedIrrelevantIds: [],
           recentRounds: newRecent,
+          lastClickedSide: null,
         }
       }
       const picks = pickRound(deck, recentFlat)
-      if (!picks) return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [] }
+      if (!picks) return { ...prev, session: null, markedIrrelevantIds: [], recentRounds: [], lastClickedSide: null }
       return {
         ...prev,
         session: buildSession(picks, lastIds),
@@ -278,6 +284,7 @@ export function useMatchEngine() {
         roundKey: prev.roundKey + 1,
         markedIrrelevantIds: [],
         recentRounds: newRecent,
+        lastClickedSide: null,
       }
     })
   }, [deck])
@@ -297,6 +304,7 @@ export function useMatchEngine() {
             roundKey: 0,
             markedIrrelevantIds: [],
             recentRounds: [],
+            lastClickedSide: null,
           },
     )
   }, [])
@@ -317,12 +325,14 @@ export function useMatchEngine() {
 
         const selectedLeft = side === 'left' ? cardId : prev.session.selectedLeft
         const selectedRight = side === 'right' ? cardId : prev.session.selectedRight
+        const lastClickedSide = side
 
         if (!selectedLeft || !selectedRight) {
           return {
             ...prev,
             session: { ...prev.session, selectedLeft, selectedRight },
             markedIrrelevantIds: unmarked,
+            lastClickedSide,
           }
         }
 
@@ -352,10 +362,12 @@ export function useMatchEngine() {
             score: prev.score + 1,
             justMatchedId: leftCard.pairId,
             markedIrrelevantIds: unmarked,
+            lastClickedSide,
           }
         }
 
-        // 错误：直接揭示正确配对（justMatchedId = 正确 pair），由动画结束后自动换题
+        // 错误：揭示「最后点击的那张卡片」的正确配对（justMatchedId = 该卡片所属 pair），
+        // 由动画结束后自动换题
         queueResult(false)
         applyStats(
           leftCard.pairId,
@@ -369,13 +381,16 @@ export function useMatchEngine() {
             false,
           )
         }
+        const revealPairId =
+          lastClickedSide === 'left' ? leftCard.pairId : rightCard.pairId
         return {
           ...prev,
           session: { ...prev.session, selectedLeft, selectedRight },
           errors: prev.errors + 1,
-          justMatchedId: rightCard.pairId,
+          justMatchedId: revealPairId,
           justWrongIds: null,
           markedIrrelevantIds: unmarked,
+          lastClickedSide,
         }
       })
     },
