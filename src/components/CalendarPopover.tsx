@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAtomValue, useStore } from 'jotai'
-import { ChevronLeft, ChevronRight, Coins } from 'lucide-react'
+import { CalendarPlus, ChevronLeft, ChevronRight, Coins } from 'lucide-react'
 import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import { pointsAtom } from '@/store/points'
 import {
   canRepairDate,
+  DAILY_BULK_REPAIR_COST,
   dayStatus,
   formatLocalDate,
   getMonthCalendar,
@@ -15,6 +16,8 @@ import {
 import { cn } from '@/lib/utils'
 import { STATUS_LABEL, STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
 import { RepairConfirmPopup } from '@/components/RepairConfirmPopup'
+import { BulkRepairDialog } from '@/components/BulkRepairDialog'
+import { Button } from '@/components/ui/button'
 import { useLongPress } from '@/hooks/useLongPress'
 
 export interface CalendarPopoverProps {
@@ -37,6 +40,8 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
   const [open, setOpen] = useState(false)
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
+  /** 批量补签弹窗开关 */
+  const [bulkOpen, setBulkOpen] = useState(false)
   /** 待确认连胜激冻的日期与锚点 */
   const [pendingRepair, setPendingRepair] = useState<{
     date: string
@@ -155,7 +160,9 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                   : status === 'none'
                     ? `${month} 月 ${cell.dayOfMonth} 日`
                     : `${month} 月 ${cell.dayOfMonth} 日 · ${
-                        status === 'freeze' || status === 'repair'
+                        status === 'freeze' ||
+                        status === 'repair' ||
+                        status === 'bulk'
                           ? `${STATUS_LABEL[status]}（-${cell.log?.pointsSpent ?? 0} 积分）`
                           : STATUS_LABEL[status]
                       }`
@@ -202,6 +209,10 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                   补签 {stats.repairDays}
                 </span>
                 <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-violet-500" />
+                  批量补签 {stats.bulkDays}
+                </span>
+                <span className="inline-flex items-center gap-1">
                   <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
                   取消 {stats.canceledDays}
                 </span>
@@ -230,10 +241,23 @@ export function CalendarPopover({ trigger }: CalendarPopoverProps) {
                   <Coins className="h-3.5 w-3.5 text-amber-500" />
                 </span>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={() => setBulkOpen(true)}
+              >
+                <CalendarPlus className="h-3.5 w-3.5" />
+                批量补签整月（{DAILY_BULK_REPAIR_COST} 积分）
+              </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* 批量补签弹窗（Portal 到 body，不受面板鼠标移出关闭影响） */}
+      <BulkRepairDialog open={bulkOpen} onOpenChange={setBulkOpen} />
 
       {/* 连胜激冻确认弹窗 */}
       {pendingRepair && (

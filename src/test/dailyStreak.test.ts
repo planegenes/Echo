@@ -97,6 +97,9 @@ describe('dayStatus', () => {
     expect(
       dayStatus(mkLog('2024-01-15', { completed: true, repairType: 'repair' })),
     ).toBe('repair')
+    expect(
+      dayStatus(mkLog('2024-01-15', { completed: true, repairType: 'bulk' })),
+    ).toBe('bulk')
     // 旧数据兼容：repaired=true 无 repairType，按 pointsSpent 推断
     const legacy = {
       completed: true,
@@ -178,16 +181,22 @@ describe('getMonthStats', () => {
         pointsSpent: 233,
       }),
       '2024-01-03': mkLog('2024-01-03', { answered: true }),
+      '2024-01-04': mkLog('2024-01-04', {
+        completed: true,
+        repairType: 'bulk',
+        pointsSpent: 13520,
+      }),
     }
     // 2024-01-15 是今天：1~14 为过去，15 为今天，16~31 为未来
     const stats = getMonthStats(logs, 2024, 1, '2024-01-15')
-    expect(stats.completedDays).toBe(2)
+    expect(stats.completedDays).toBe(3)
     expect(stats.freezeDays).toBe(1)
     expect(stats.repairDays).toBe(0)
+    expect(stats.bulkDays).toBe(1)
     expect(stats.answeredOnlyDays).toBe(1)
-    expect(stats.pointsSpent).toBe(233)
-    // 过去 14 天中 3 天有记录 → 11 天未答题（今天 15 不算 missed）
-    expect(stats.missedDays).toBe(11)
+    expect(stats.pointsSpent).toBe(233 + 13520)
+    // 过去 14 天中 4 天有记录 → 10 天未答题（今天 15 不算 missed）
+    expect(stats.missedDays).toBe(10)
   })
 
   it('未来日期不计入未答题', () => {

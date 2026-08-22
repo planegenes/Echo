@@ -15,6 +15,9 @@ export const DAILY_STREAK_REPAIR_COST = 233
 /** 日历中手动补签一天所需积分（非连胜激冻的其余历史日期） */
 export const DAILY_REPAIR_COST = 648
 
+/** 批量补签整月所需积分（一次性，补目标月今天之前所有未打卡日期） */
+export const DAILY_BULK_REPAIR_COST = 13520
+
 /**
  * 判定某天手动修复的类型（仅对可修复的未完成日期调用）：
  * - 「连胜激冻」：该天是昨天，且前天已完成打卡（前天不是未答/未打卡）
@@ -60,8 +63,9 @@ export interface DayLog {
   completed: boolean
   /** 当天消耗的积分（连胜激冻 233 / 补签 648） */
   pointsSpent: number
-  /** 修复类型：'freeze' 连胜激冻（昨天且前天已打卡，233）、'repair' 补签（其余情况，648）；缺省表示正常打卡 */
-  repairType?: 'freeze' | 'repair'
+  /** 修复类型：'freeze' 连胜激冻（昨天且前天已打卡，233）、'repair' 补签（其余情况，648）、
+   * 'bulk' 批量补签（整月打包，13520）；缺省表示正常打卡 */
+  repairType?: 'freeze' | 'repair' | 'bulk'
   /** 连错 ≥10 题时被取消的「正常」打卡（日历中以独立颜色区分，不计入连胜） */
   canceled?: boolean
 }
@@ -74,6 +78,7 @@ export type DayStatus =
   | 'completed'
   | 'freeze'
   | 'repair'
+  | 'bulk'
   | 'canceled'
   | 'answered'
   | 'none'
@@ -174,7 +179,7 @@ export function recordDailyCorrect(
 
 /**
  * 某天日志的状态（供热力图着色）：
- * - completed 正常打卡；freeze 连胜激冻；repair 补签；canceled 连错取消；answered 未完成；none 未答题
+ * - completed 正常打卡；freeze 连胜激冻；repair 补签；bulk 批量补签；canceled 连错取消；answered 未完成；none 未答题
  * - 兼容旧数据：repaired=true 无 repairType 时按 pointsSpent 推断（>=648 视为补签，否则连胜激冻）
  */
 export function dayStatus(log: DayLog | undefined): DayStatus {
@@ -184,6 +189,7 @@ export function dayStatus(log: DayLog | undefined): DayStatus {
   if (log.completed) {
     if (log.repairType === 'freeze') return 'freeze'
     if (log.repairType === 'repair') return 'repair'
+    if (log.repairType === 'bulk') return 'bulk'
     // 旧数据兼容
     const legacy = (log as DayLog & { repaired?: boolean }).repaired
     if (legacy) return log.pointsSpent >= DAILY_REPAIR_COST ? 'repair' : 'freeze'
@@ -251,12 +257,14 @@ export function getMonthCalendar(
 
 /** 某月统计 */
 export interface MonthStats {
-  /** 完整打卡天数（含激冻/补签） */
+  /** 完整打卡天数（含激冻/补签/批量补签） */
   completedDays: number
   /** 连胜激冻天数（昨天，233） */
   freezeDays: number
   /** 补签天数（更早，648） */
   repairDays: number
+  /** 批量补签天数（整月打包，13520） */
+  bulkDays: number
   /** 连错 ≥10 被取消的打卡天数 */
   canceledDays: number
   /** 答过题但未完成的天数 */
@@ -279,6 +287,7 @@ export function getMonthStats(
     completedDays: 0,
     freezeDays: 0,
     repairDays: 0,
+    bulkDays: 0,
     canceledDays: 0,
     answeredOnlyDays: 0,
     missedDays: 0,
@@ -291,10 +300,16 @@ export function getMonthStats(
       const st = dayStatus(log)
       if (st === 'canceled') {
         stats.canceledDays += 1
-      } else if (st === 'completed' || st === 'freeze' || st === 'repair') {
+      } else if (
+        st === 'completed' ||
+        st === 'freeze' ||
+        st === 'repair' ||
+        st === 'bulk'
+      ) {
         stats.completedDays += 1
         if (st === 'freeze') stats.freezeDays += 1
         else if (st === 'repair') stats.repairDays += 1
+        else if (st === 'bulk') stats.bulkDays += 1
       } else if (st === 'answered') {
         stats.answeredOnlyDays += 1
       }

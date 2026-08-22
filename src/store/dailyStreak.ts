@@ -1,6 +1,7 @@
 import { atom, createStore } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import {
+  DAILY_BULK_REPAIR_COST,
   DAILY_STREAK_REPAIR_COST,
   canRepairDate,
   dayBeforeYesterdayStr,
@@ -123,6 +124,61 @@ export function repairDateOnCalendar(store: JotaiStore, date: string): boolean {
     }),
   )
   return true
+}
+
+/** 批量补签结果 */
+export interface BulkRepairResult {
+  ok: boolean
+  /** 实际补签的天数 */
+  count: number
+  /** 消耗积分（成功时为 DAILY_BULK_REPAIR_COST） */
+  cost: number
+  /** 失败原因（ok=false 时）：'insufficient' 积分不足 | 'noMissing' 该月没有可补签日期 */
+  reason?: 'insufficient' | 'noMissing'
+}
+
+/**
+ * 批量补签整月：一次性消耗 13520 积分，将目标月「今天之前」所有未打卡日期标记为批量补签
+ * - 跳过今天及未来日期（当天未结束，靠正常答题完成）
+ * - 跳过已完成打卡的日期（含激冻/补签/批量补签）
+ * - 积分不足或该月无可补签日期时返回失败原因
+ */
+export function bulkRepairMonth(
+  store: JotaiStore,
+  year: number,
+  month: number,
+): BulkRepairResult {
+  const today = formatLocalDate()
+  const daysInMonth = new Date(year, month, 0).getDate()
+  let logs = store.get(dayLogsAtom)
+  const dates: string[] = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = formatLocalDate(new Date(year, month - 1, d))
+    if (date >= today) continue
+    if (logs[date]?.completed) continue
+    dates.push(date)
+  }
+  if (dates.length === 0) {
+    return { ok: false, count: 0, cost: DAILY_BULK_REPAIR_COST, reason: 'noMissing' }
+  }
+  const pts = store.get(pointsAtom)
+  if (pts.points < DAILY_BULK_REPAIR_COST) {
+    return { ok: false, count: 0, cost: DAILY_BULK_REPAIR_COST, reason: 'insufficient' }
+  }
+
+  store.set(pointsAtom, { ...pts, points: pts.points - DAILY_BULK_REPAIR_COST })
+  dates.forEach((date, i) => {
+    logs = upsertDayLog(logs, date, {
+      completed: true,
+      repairType: 'bulk',
+      // 整月打包成本记录在该月第一个被补签的日期上（月统计合计即 13520）
+      pointsSpent:
+        (logs[date]?.pointsSpent ?? 0) +
+        (i === 0 ? DAILY_BULK_REPAIR_COST : 0),
+    })
+  })
+  store.set(dayLogsAtom, logs)
+  return { ok: true, count: dates.length, cost: DAILY_BULK_REPAIR_COST }
 }
 
 /**

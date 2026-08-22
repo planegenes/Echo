@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useAtomValue, useStore } from 'jotai'
-import { Coins } from 'lucide-react'
+import { CalendarPlus, Coins } from 'lucide-react'
 import {
   Dialog,
   DialogHeader,
@@ -10,6 +10,7 @@ import { dayLogsAtom, repairDateOnCalendar } from '@/store/dailyStreak'
 import { pointsAtom } from '@/store/points'
 import {
   canRepairDate,
+  DAILY_BULK_REPAIR_COST,
   dayStatus,
   formatLocalDate,
   getMonthCalendar,
@@ -21,6 +22,8 @@ import {
 import { cn } from '@/lib/utils'
 import { STATUS_STYLE, WEEKDAYS } from '@/components/calendarStyles'
 import { RepairConfirmPopup } from '@/components/RepairConfirmPopup'
+import { BulkRepairDialog } from '@/components/BulkRepairDialog'
+import { Button } from '@/components/ui/button'
 
 export interface YearCalendarDialogProps {
   open: boolean
@@ -43,6 +46,8 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
     x: number
     y: number
   } | null>(null)
+  /** 批量补签弹窗开关 */
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   const months = useMemo(
     () => Array.from({ length: 12 }, (_, i) => getMonthCalendar(logs, year, i + 1, today)),
@@ -55,6 +60,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
       completedDays: 0,
       freezeDays: 0,
       repairDays: 0,
+      bulkDays: 0,
       canceledDays: 0,
       answeredOnlyDays: 0,
       missedDays: 0,
@@ -65,6 +71,7 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
       total.completedDays += s.completedDays
       total.freezeDays += s.freezeDays
       total.repairDays += s.repairDays
+      total.bulkDays += s.bulkDays
       total.canceledDays += s.canceledDays
       total.answeredOnlyDays += s.answeredOnlyDays
       total.missedDays += s.missedDays
@@ -163,6 +170,10 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
               补签 {yearStats.repairDays}
             </span>
             <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-sm bg-violet-500" />
+              批量补签 {yearStats.bulkDays}
+            </span>
+            <span className="inline-flex items-center gap-1">
               <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
               取消 {yearStats.canceledDays}
             </span>
@@ -191,8 +202,21 @@ export function YearCalendarDialog({ open, onOpenChange }: YearCalendarDialogPro
               <Coins className="h-3.5 w-3.5 text-amber-500" />
             </span>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={() => setBulkOpen(true)}
+          >
+            <CalendarPlus className="h-3.5 w-3.5" />
+            批量补签整月（{DAILY_BULK_REPAIR_COST} 积分）
+          </Button>
         </div>
       </div>
+
+      {/* 批量补签弹窗 */}
+      <BulkRepairDialog open={bulkOpen} onOpenChange={setBulkOpen} />
 
       {/* 连胜激冻确认弹窗 */}
       {pendingRepair && (
